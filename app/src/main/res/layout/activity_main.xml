@@ -12,9 +12,9 @@
         android:layout_width="0dp"
         android:layout_height="280dp"
         android:background="#003AA9"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <ImageView
         android:id="@+id/ivMapPlaceholder"
@@ -22,10 +22,23 @@
         android:layout_height="0dp"
         android:background="#FFCC00"
         android:contentDescription="Map Canvas Background"
-        app:layout_constraintTop_toBottomOf="@id/viewHeaderBackground"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/viewHeaderBackground" />
+
+    <ImageView
+        android:id="@+id/mapImage3"
+
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+
+        android:scaleType="centerCrop"
+        android:src="@drawable/map_bg"
+
+        app:layout_constraintBottom_toTopOf="@+id/clRoutesPanel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/viewHeaderBackground" />
 
     <ImageView
         android:id="@+id/ivMenu"

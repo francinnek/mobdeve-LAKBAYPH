@@ -13,6 +13,15 @@ class CommuterActiveTripActivity : ComponentActivity() {
         binding = ActivityCommuterActiveTripBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        val intentData = intent
+        val details = intentData.getStringExtra("ROUTE_DETAILS")
+        val timeWindow = intentData.getStringExtra("ROUTE_TIME_WINDOW")
+        val duration = intentData.getStringExtra("ROUTE_DURATION")
+
+        binding.tvRouteDetails.text = details
+        binding.tvTimeWindow.text = timeWindow
+        binding.tvDuration.text = duration
+
         binding.endTripBtn.setOnClickListener {
             finish()
         }

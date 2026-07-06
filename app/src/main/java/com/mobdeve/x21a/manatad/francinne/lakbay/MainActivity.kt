@@ -1,5 +1,6 @@
 package com.mobdeve.x21a.manatad.francinne.lakbay
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -24,5 +25,10 @@ class MainActivity : ComponentActivity() {
         )
 
         binding.rvRoutes.adapter = RouteAdapter(dummyData)
+
+        binding.cvSearch.setOnClickListener {
+            val intent = Intent(this, CommuterActiveTripActivity::class.java)
+            startActivity(intent)
+        }
     }
 }

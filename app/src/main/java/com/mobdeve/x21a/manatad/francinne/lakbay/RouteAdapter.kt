@@ -8,7 +8,16 @@ import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ItemRouteBinding
 
 class RouteAdapter(private val routes: List<Route>) : RecyclerView.Adapter<RouteAdapter.RouteViewHolder>() {
 
-    class RouteViewHolder(val binding: ItemRouteBinding) : RecyclerView.ViewHolder(binding.root)
+    class RouteViewHolder(val binding: ItemRouteBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bindData(route: Route) {
+            with(binding) {
+                tvRouteDetails.text = route.details
+                tvTimeWindow.text = route.timeWindow
+                tvDuration.text = route.duration
+                tvFare.text = route.fare
+            }
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RouteViewHolder {
         val binding = ItemRouteBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -17,18 +26,21 @@ class RouteAdapter(private val routes: List<Route>) : RecyclerView.Adapter<Route
 
     override fun onBindViewHolder(holder: RouteViewHolder, position: Int) {
         val route = routes[position]
-        with(holder.binding) {
-            tvRouteDetails.text = route.details
-            tvTimeWindow.text = route.timeWindow
-            tvDuration.text = route.duration
-            tvFare.text = route.fare
-        }
+
+        holder.bindData(route)
 
         holder.itemView.setOnClickListener {
-            val intent = Intent(holder.itemView.context, CommuterActiveTripActivity::class.java)
-            holder.itemView.context.startActivity(intent)
+            val context = holder.itemView.context // Rule of thumb: Use view/activity context for Views
+            val intent = Intent(context, CommuterActiveTripActivity::class.java) //
+
+            intent.putExtra("ROUTE_DETAILS", route.details)
+            intent.putExtra("ROUTE_TIME_WINDOW", route.timeWindow)
+            intent.putExtra("ROUTE_DURATION", route.duration)
+            intent.putExtra("ROUTE_FARE", route.fare)
+
+            context.startActivity(intent) //
         }
     }
 
-    override fun getItemCount() = routes.size
+    override fun getItemCount() = routes.size //
 }

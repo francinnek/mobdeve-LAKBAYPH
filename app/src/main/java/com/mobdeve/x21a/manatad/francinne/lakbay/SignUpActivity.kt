@@ -15,7 +15,7 @@ class SignUpActivity : ComponentActivity() {
         setContentView(binding.root)
 
         binding.btnSignIn1.setOnClickListener {
-            val intent = Intent(this, MainActivity::class.java)
+            val intent = Intent(this, OnLaunchActivity::class.java)
             startActivity(intent)
         }
     }
