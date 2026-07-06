@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F6FA">
+
+    <View
+        android:id="@+id/viewHeaderBackground"
+        android:layout_width="0dp"
+        android:layout_height="280dp"
+        android:background="#003AA9"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <ImageView
+        android:id="@+id/ivMapPlaceholder"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#FFCC00"
+        android:contentDescription="Map Canvas Background"
+        app:layout_constraintTop_toBottomOf="@id/viewHeaderBackground"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <ImageView
+        android:id="@+id/ivMenu"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="24dp"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:contentDescription="Menu"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/tvGreeting"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="24dp"
+        android:text="Hello, Commuter!"
+        android:textAlignment="viewEnd"
+        android:textColor="#FFFFFF"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tvSubtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Where do you want to go today?"
+        android:textColor="#E0E0E0"
+        android:textSize="14sp"
+        app:layout_constraintTop_toBottomOf="@id/tvGreeting"
+        app:layout_constraintEnd_toEndOf="@id/tvGreeting" />
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cvSearch"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginTop="24dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp"
+        app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp">
+
+            <ImageView
+                android:id="@+id/ivFromPin"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_menu_myplaces"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <TextView
+                android:id="@+id/tvFromLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="From"
+                android:textColor="#003AA9"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:layout_constraintTop_toTopOf="@id/ivFromPin"
+                app:layout_constraintStart_toEndOf="@id/ivFromPin" />
+
+            <TextView
+                android:id="@+id/tvFromAddress"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="De La Salle University Manila"
+                android:textColor="#1A1A1A"
+                android:textSize="14sp"
+                app:layout_constraintTop_toBottomOf="@id/tvFromLabel"
+                app:layout_constraintStart_toEndOf="@id/ivFromPin"
+                app:layout_constraintEnd_toEndOf="parent" />
+
+            <View
+                android:id="@+id/vSearchDivider"
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_marginTop="12dp"
+                android:background="#E0E0E0"
+                app:layout_constraintTop_toBottomOf="@id/tvFromAddress"
+                app:layout_constraintStart_toStartOf="@id/tvFromLabel"
+                app:layout_constraintEnd_toEndOf="parent" />
+
+            <ImageView
+                android:id="@+id/ivToPin"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginTop="12dp"
+                android:src="@android:drawable/ic_menu_myplaces"
+                app:layout_constraintTop_toBottomOf="@id/vSearchDivider"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <TextView
+                android:id="@+id/tvToLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="To"
+                android:textColor="#FFCC00"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:layout_constraintTop_toTopOf="@id/ivToPin"
+                app:layout_constraintStart_toEndOf="@id/ivToPin" />
+
+            <TextView
+                android:id="@+id/tvToAddress"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="Manila City Hall"
+                android:textColor="#1A1A1A"
+                android:textSize="14sp"
+                app:layout_constraintTop_toBottomOf="@id/tvToLabel"
+                app:layout_constraintStart_toEndOf="@id/ivToPin"
+                app:layout_constraintEnd_toEndOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.cardview.widget.CardView>
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guidelinePanelTop"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.66" />
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/clRoutesPanel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/white"
+        app:layout_constraintTop_toTopOf="@id/guidelinePanelTop"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <View
+            android:id="@+id/vAccentBar"
+            android:layout_width="60dp"
+            android:layout_height="4dp"
+            android:layout_marginTop="12dp"
+            android:background="#FFCC00"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <TextView
+            android:id="@+id/tvRecommendedRoutes"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginTop="16dp"
+            android:text="Recommended Routes"
+            android:textColor="#1A1A1A"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toBottomOf="@id/vAccentBar"
+            app:layout_constraintStart_toStartOf="parent" />
+
+            <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvRoutes"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginTop="8dp"
+            android:paddingHorizontal="16dp"
+            tools:listitem="@layout/item_route"
+            app:layout_constraintTop_toBottomOf="@id/tvRecommendedRoutes"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
