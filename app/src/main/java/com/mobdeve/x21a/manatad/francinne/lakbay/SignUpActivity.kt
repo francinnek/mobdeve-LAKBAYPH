@@ -2,6 +2,7 @@ package com.mobdeve.x21a.manatad.francinne.lakbay
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivitySignupBinding
 
@@ -15,8 +16,39 @@ class SignUpActivity : ComponentActivity() {
         setContentView(binding.root)
 
         binding.btnSignIn1.setOnClickListener {
+            val email = binding.edtEmailAddress1.text.toString().trim()
+            val password = binding.edtPassword.text.toString().trim()
+            val confirmPassword = binding.edtConfirmPassword.text.toString().trim()
+
+            if (email.isEmpty()) {
+                binding.edtEmailAddress1.error = "Email address is required"
+                binding.edtEmailAddress1.requestFocus()
+                return@setOnClickListener
+            }
+
+            if (password.isEmpty()) {
+                binding.edtPassword.error = "Password is required"
+                binding.edtPassword.requestFocus()
+                return@setOnClickListener
+            }
+
+            if (confirmPassword.isEmpty()) {
+                binding.edtConfirmPassword.error = "Please confirm your password"
+                binding.edtConfirmPassword.requestFocus()
+                return@setOnClickListener
+            }
+
+            if (password != confirmPassword) {
+                binding.edtConfirmPassword.error = "Passwords do not match"
+                binding.edtConfirmPassword.requestFocus()
+                return@setOnClickListener
+            }
+
+            Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show()
+
             val intent = Intent(this, OnLaunchActivity::class.java)
             startActivity(intent)
+            finish()
         }
     }
 }

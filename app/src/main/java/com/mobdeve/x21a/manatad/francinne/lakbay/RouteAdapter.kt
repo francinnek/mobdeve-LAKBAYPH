@@ -30,17 +30,17 @@ class RouteAdapter(private val routes: List<Route>) : RecyclerView.Adapter<Route
         holder.bindData(route)
 
         holder.itemView.setOnClickListener {
-            val context = holder.itemView.context // Rule of thumb: Use view/activity context for Views
-            val intent = Intent(context, CommuterActiveTripActivity::class.java) //
+            val context = holder.itemView.context
+            val intent = Intent(context, CommuterActiveTripActivity::class.java)
 
             intent.putExtra("ROUTE_DETAILS", route.details)
             intent.putExtra("ROUTE_TIME_WINDOW", route.timeWindow)
             intent.putExtra("ROUTE_DURATION", route.duration)
             intent.putExtra("ROUTE_FARE", route.fare)
 
-            context.startActivity(intent) //
+            context.startActivity(intent)
         }
     }
 
-    override fun getItemCount() = routes.size //
+    override fun getItemCount() = routes.size
 }

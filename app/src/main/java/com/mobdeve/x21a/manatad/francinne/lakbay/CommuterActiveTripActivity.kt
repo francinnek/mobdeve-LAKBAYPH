@@ -17,11 +17,10 @@ class CommuterActiveTripActivity : ComponentActivity() {
         val details = intentData.getStringExtra("ROUTE_DETAILS")
         val timeWindow = intentData.getStringExtra("ROUTE_TIME_WINDOW")
         val duration = intentData.getStringExtra("ROUTE_DURATION")
-        val fare = intentData.getStringExtra("ROUTE_FARE")
 
-        binding.tvRouteDetails.text = details
-        binding.tvTimeWindow.text = timeWindow
-        binding.tvDuration.text = duration
+        binding.tvRouteDetails.text = details ?: "Jeepney (Taft Avenue)"
+        binding.tvTimeWindow.text = timeWindow ?: "Quirino Avenue"
+        binding.tvDuration.text = duration ?: "8 mins"
 
         binding.endTripBtn.setOnClickListener {
             finish()

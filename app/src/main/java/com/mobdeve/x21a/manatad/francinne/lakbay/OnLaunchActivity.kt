@@ -1,5 +1,6 @@
 package com.mobdeve.x21a.manatad.francinne.lakbay
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,6 +12,17 @@ class OnLaunchActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val sharedPreferences = getSharedPreferences("LakbaySession", Context.MODE_PRIVATE)
+        val isLoggedIn = sharedPreferences.getBoolean("IS_LOGGED_IN", false)
+
+        if (isLoggedIn) {
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+            return
+        }
+
         binding = ActivityOnlaunchBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
