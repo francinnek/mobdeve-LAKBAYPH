@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "212423414974",
+    "firebase_url": "https://lakbayph-9607a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "lakbayph-9607a",
+    "storage_bucket": "lakbayph-9607a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:212423414974:android:b3e0661e824affa8d97aef",
+        "android_client_info": {
+          "package_name": "com.mobdeve.x21a.manatad.francinne.lakbay"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmzcroSaS1GwYg5m3xCCGNnOCzto-A7rM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

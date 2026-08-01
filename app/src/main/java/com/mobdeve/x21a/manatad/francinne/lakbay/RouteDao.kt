@@ -15,4 +15,7 @@ interface RouteDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertAll(routes: List<Route>)
+
+    @Query("DELETE FROM routes")
+    fun clearAll()
 }

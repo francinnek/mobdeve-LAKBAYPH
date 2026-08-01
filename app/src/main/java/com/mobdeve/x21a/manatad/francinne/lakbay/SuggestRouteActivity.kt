@@ -2,11 +2,11 @@ package com.mobdeve.x21a.manatad.francinne.lakbay
 
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.database.FirebaseDatabase
 import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivitySuggestRouteBinding
 
-class SuggestRouteActivity : ComponentActivity() {
+class SuggestRouteActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySuggestRouteBinding
 
