@@ -9,6 +9,13 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.OnMapReadyCallback
+import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.LatLngBounds
 import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityMainBinding
 
 import androidx.lifecycle.lifecycleScope
@@ -16,16 +23,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var database: AppDatabase
     private val remoteRoutesList = mutableListOf<Route>()
 
+    private lateinit var mMap: GoogleMap
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        val mapFragment = supportFragmentManager
+            .findFragmentById(R.id.map) as SupportMapFragment
+
+        mapFragment.getMapAsync(this)
 
         binding.rvRoutes.layoutManager = LinearLayoutManager(this)
 
@@ -35,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val routeDao = database.routeDao()
             var localRoutes = routeDao.getAllRoutes()
-            
+
             if (localRoutes.isEmpty()) {
                 val dummyData = listOf(
                     Route("🚶‍♂️ 2 > 🚌 5 > 🚇 MRT-3 35", "10:00 AM - 11:00 AM", "1 hr", "₱40.00"),
@@ -98,11 +112,40 @@ class MainActivity : AppCompatActivity() {
             com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
             val sharedPreferences = getSharedPreferences("LakbaySession", MODE_PRIVATE)
             sharedPreferences.edit().clear().apply()
-            
+
             val intent = Intent(this, OnLaunchActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
             finish()
         }
+    }
+
+    override fun onMapReady(googleMap: GoogleMap) {
+
+        mMap = googleMap
+
+        val dlsu = LatLng(14.5648, 120.9936)
+        val cityHall = LatLng(14.5906, 120.9817)
+
+        mMap.addMarker(
+            MarkerOptions()
+                .position(dlsu)
+                .title("De La Salle University Manila")
+        )
+
+        mMap.addMarker(
+            MarkerOptions()
+                .position(cityHall)
+                .title("Manila City Hall")
+        )
+
+        val bounds = LatLngBounds.Builder()
+            .include(dlsu)
+            .include(cityHall)
+            .build()
+
+        mMap.moveCamera(
+            CameraUpdateFactory.newLatLngBounds(bounds, 100)
+        )
     }
 }
