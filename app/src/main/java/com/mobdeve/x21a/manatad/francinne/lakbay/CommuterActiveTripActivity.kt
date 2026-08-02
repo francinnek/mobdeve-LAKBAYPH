@@ -10,7 +10,12 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
@@ -22,6 +27,18 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+
+    // Define BroadcastReceiver to receive updates from background service
+    private val tripReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == TripTrackingService.ACTION_TRIP_UPDATE) {
+                val elapsedSeconds = intent.getIntExtra(TripTrackingService.EXTRA_ELAPSED_SECONDS, 0)
+                val minutes = elapsedSeconds / 60
+                val seconds = elapsedSeconds % 60
+                binding.tvDuration.text = String.format("%02d:%02d", minutes, seconds)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,8 +60,24 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.tvTimeWindow.text = timeWindow ?: "Quirino Avenue"
         binding.tvDuration.text = duration ?: "8 mins"
 
+            // Start background location and trip tracking service
+        val serviceIntent = Intent(this, TripTrackingService::class.java)
+        startService(serviceIntent)
+
         binding.endTripBtn.setOnClickListener {
+            // Stop background tracking service when trip ends
+            stopService(serviceIntent)
             finish()
+        }
+    }
+
+    // Unregister BroadcastReceiver in onStop() to avoid leaks
+    override fun onStop() {
+        super.onStop()
+        try {
+            unregisterReceiver(tripReceiver)
+        } catch (e: IllegalArgumentException) {
+            e.printStackTrace()
         }
     }
 
