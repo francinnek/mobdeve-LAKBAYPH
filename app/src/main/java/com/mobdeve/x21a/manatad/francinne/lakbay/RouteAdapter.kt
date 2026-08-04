@@ -12,6 +12,12 @@ import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ItemRouteBinding
 
 class RouteAdapter(private val routes: List<Route>) : RecyclerView.Adapter<RouteAdapter.RouteViewHolder>() {
 
+    private var onItemClickListener: ((Route) -> Unit)? = null
+
+    fun setOnItemClickListener(listener: (Route) -> Unit) {
+        onItemClickListener = listener
+    }
+
     class RouteViewHolder(val binding: ItemRouteBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bindData(route: Route) {
             with(binding) {
@@ -34,15 +40,19 @@ class RouteAdapter(private val routes: List<Route>) : RecyclerView.Adapter<Route
         holder.bindData(route)
 
         holder.itemView.setOnClickListener {
-            val context = holder.itemView.context
-            val intent = Intent(context, CommuterActiveTripActivity::class.java)
+            if (onItemClickListener != null) {
+                onItemClickListener?.invoke(route)
+            } else {
+                val context = holder.itemView.context
+                val intent = Intent(context, CommuterActiveTripActivity::class.java)
 
-            intent.putExtra("ROUTE_DETAILS", route.details)
-            intent.putExtra("ROUTE_TIME_WINDOW", route.timeWindow)
-            intent.putExtra("ROUTE_DURATION", route.duration)
-            intent.putExtra("ROUTE_FARE", route.fare)
+                intent.putExtra("ROUTE_DETAILS", route.details)
+                intent.putExtra("ROUTE_TIME_WINDOW", route.timeWindow)
+                intent.putExtra("ROUTE_DURATION", route.duration)
+                intent.putExtra("ROUTE_FARE", route.fare)
 
-            context.startActivity(intent)
+                context.startActivity(intent)
+            }
         }
 
         holder.binding.ivReportRoute.setOnClickListener {

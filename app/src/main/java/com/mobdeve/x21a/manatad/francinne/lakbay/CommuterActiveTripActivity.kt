@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -17,6 +19,7 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityCommuterActiveTripBinding
+import java.util.concurrent.Executors
 
 class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -32,7 +35,9 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentLat = 0.0
     private var currentLng = 0.0
 
-    // Define BroadcastReceiver to receive updates from background service
+    // Initialize ExecutorService for offloading GTFS processing
+    private val executorService = Executors.newSingleThreadExecutor()
+
     private val tripReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == TripTrackingService.ACTION_TRIP_UPDATE) {
@@ -83,18 +88,25 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
 
         binding.tvDuration.text = duration ?: "8 mins"
 
-            // Start background location and trip tracking service
         val serviceIntent = Intent(this, TripTrackingService::class.java)
         startService(serviceIntent)
 
         binding.endTripBtn.setOnClickListener {
-            // Stop background tracking service when trip ends
             stopService(serviceIntent)
             finish()
         }
     }
 
-    // Unregister BroadcastReceiver in onStop() to avoid leaks
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter(TripTrackingService.ACTION_TRIP_UPDATE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(tripReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(tripReceiver, filter)
+        }
+    }
+
     override fun onStop() {
         super.onStop()
         try {
@@ -151,6 +163,34 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
                 )
             )
 
+        }
+
+        // Load and parse GTFS stops on map off the main thread
+        loadGtfsStops()
+    }
+
+    private fun loadGtfsStops() {
+        executorService.execute {
+            try {
+                // Place stops.txt inside res/raw/stops.txt
+                val inputStream = resources.openRawResource(R.raw.stops)
+                val parser = GtfsParser()
+                val stops = parser.parseStops(inputStream)
+
+                // Update UI elements on main thread
+                runOnUiThread {
+                    for (stop in stops) {
+                        val stopLatLng = LatLng(stop.latitude, stop.longitude)
+                        mMap.addMarker(
+                            MarkerOptions()
+                                .position(stopLatLng)
+                                .title(stop.stopName)
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 }

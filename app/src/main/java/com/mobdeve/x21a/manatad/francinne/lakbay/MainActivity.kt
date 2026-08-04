@@ -3,6 +3,7 @@ package com.mobdeve.x21a.manatad.francinne.lakbay
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.os.Bundle
 import android.widget.EditText
 import android.widget.Toast
@@ -19,7 +20,6 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -29,7 +29,7 @@ import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.location.Geocoder
+import java.io.InputStream
 import java.util.Locale
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -65,59 +65,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         database = AppDatabase.getDatabase(this)
 
-        // Local Room route fallback
-        lifecycleScope.launch(Dispatchers.IO) {
-            val routeDao = database.routeDao()
-            var localRoutes = routeDao.getAllRoutes()
-
-            if (localRoutes.isEmpty()) {
-                val dummyData = listOf(
-                    Route("🚶‍♂️ 2 > 🚌 5 > 🚇 MRT-3 35", "10:00 AM - 11:00 AM", "1 hr", "₱40.00"),
-                    Route("🚌 12 > 🚶‍♂️ 5 > 🚇 LRT-1 20", "10:15 AM - 11:15 AM", "55 mins", "₱35.00"),
-                    Route("🚶‍♂️ 10 > 🚌 25", "10:30 AM - 11:30 AM", "1 hr 10 mins", "₱20.00"),
-                    Route("🚕 Grab/Joyride", "Available Now", "25 mins", "₱180.00")
-                )
-                routeDao.insertAll(dummyData)
-                localRoutes = routeDao.getAllRoutes()
-            }
-
-            withContext(Dispatchers.Main) {
-                binding.rvRoutes.adapter = RouteAdapter(localRoutes)
-            }
-        }
-
-        // Synchronize and fetch real-time route data from Firebase Database
-        val firebaseRef = FirebaseDatabase.getInstance().getReference("routes")
-        firebaseRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                if (snapshot.exists()) {
-                    remoteRoutesList.clear()
-                    for (routeSnapshot in snapshot.children) {
-                        val details = routeSnapshot.child("details").getValue(String::class.java) ?: ""
-                        val timeWindow = routeSnapshot.child("timeWindow").getValue(String::class.java) ?: ""
-                        val duration = routeSnapshot.child("duration").getValue(String::class.java) ?: ""
-                        val fare = routeSnapshot.child("fare").getValue(String::class.java) ?: ""
-
-                        val route = Route(details, timeWindow, duration, fare)
-                        remoteRoutesList.add(route)
-                    }
-                    if (remoteRoutesList.isNotEmpty()) {
-                        binding.rvRoutes.adapter = RouteAdapter(remoteRoutesList)
-
-                        // Persist to Room
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            database.routeDao().clearAll()
-                            database.routeDao().insertAll(remoteRoutesList)
-                        }
-                    }
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(this@MainActivity, "Failed to load live Firebase data: ${error.message}", Toast.LENGTH_SHORT).show()
-            }
-        })
-
         binding.cvSearch.setOnClickListener {
 
             if (destinationName.isBlank()) {
@@ -138,8 +85,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             intent.putExtra("CURRENT_LAT", currentLat)
             intent.putExtra("CURRENT_LNG", currentLng)
 
-            intent.putExtra("ROUTE_TITLE", "Current Location → $destinationName"
-            )
+            intent.putExtra("ROUTE_TITLE", "Current Location → $destinationName")
 
             startActivity(intent)
         }
@@ -165,10 +111,149 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    private fun showRouteDetailsPopup(route: Route) {
+        val detailsMessage = "Route Steps:\n${route.details}\n\n" +
+                "Operating Hours: ${route.timeWindow}\n" +
+                "Estimated Time: ${route.duration}\n" +
+                "Estimated Fare: ${route.fare}"
+
+        AlertDialog.Builder(this)
+            .setTitle("Route Options & Details")
+            .setMessage(detailsMessage)
+            .setPositiveButton("Select Route") { _, _ ->
+                if (destinationName.isBlank()) {
+                    Toast.makeText(
+                        this,
+                        "Please enter a destination first.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@setPositiveButton
+                }
+
+                val intent = Intent(this, CommuterActiveTripActivity::class.java)
+                intent.putExtra("DESTINATION_NAME", destinationName)
+                intent.putExtra("DESTINATION_LAT", destinationLat)
+                intent.putExtra("DESTINATION_LNG", destinationLng)
+                intent.putExtra("CURRENT_LAT", currentLat)
+                intent.putExtra("CURRENT_LNG", currentLng)
+                intent.putExtra("ROUTE_DETAILS", route.details)
+                intent.putExtra("ROUTE_TIME_WINDOW", route.timeWindow)
+                intent.putExtra("ROUTE_DURATION", route.duration)
+                intent.putExtra("ROUTE_FARE", route.fare)
+                intent.putExtra("ROUTE_TITLE", "Current Location → $destinationName")
+
+                startActivity(intent)
+            }
+            .setNegativeButton("Choose Another", null)
+            .show()
+    }
+
+    // Prioritize GTFS file parsing off main thread over old dummy entries
+    private fun fetchRecommendedRoutes() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val routeDao = database.routeDao()
+
+            // Try parsing GTFS raw feed first
+            var gtfsRoutes = parseGtfsRoutesFromRaw()
+
+            val routesToDisplay: List<Route> = if (gtfsRoutes.isNotEmpty()) {
+                // Clear old dummy cache and update Room DB with parsed GTFS routes
+                routeDao.clearAll()
+                routeDao.insertAll(gtfsRoutes)
+                gtfsRoutes
+            } else {
+                // Fallback to existing Room database entries or dummy data
+                val localRoutes = routeDao.getAllRoutes()
+                if (localRoutes.isEmpty()) {
+                    val dummyData = listOf(
+                        Route("🚶‍♂️ 2 > 🚌 5 > 🚇 MRT-3 35", "10:00 AM - 11:00 AM", "1 hr", "₱40.00"),
+                        Route("🚌 12 > 🚶‍♂️ 5 > 🚇 LRT-1 20", "10:15 AM - 11:15 AM", "55 mins", "₱35.00"),
+                        Route("🚶‍♂️ 10 > 🚌 25", "10:30 AM - 11:30 AM", "1 hr 10 mins", "₱20.00"),
+                        Route("🚕 Grab/Joyride", "Available Now", "25 mins", "₱180.00")
+                    )
+                    routeDao.insertAll(dummyData)
+                    routeDao.getAllRoutes()
+                } else {
+                    localRoutes
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                val adapter = RouteAdapter(routesToDisplay)
+                adapter.setOnItemClickListener { route ->
+                    showRouteDetailsPopup(route)
+                }
+                binding.rvRoutes.adapter = adapter
+            }
+        }
+
+        val firebaseRef = FirebaseDatabase.getInstance().getReference("routes")
+        firebaseRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.exists()) {
+                    remoteRoutesList.clear()
+                    for (routeSnapshot in snapshot.children) {
+                        val details = routeSnapshot.child("details").getValue(String::class.java) ?: ""
+                        val timeWindow = routeSnapshot.child("timeWindow").getValue(String::class.java) ?: ""
+                        val duration = routeSnapshot.child("duration").getValue(String::class.java) ?: ""
+                        val fare = routeSnapshot.child("fare").getValue(String::class.java) ?: ""
+
+                        val route = Route(details, timeWindow, duration, fare)
+                        remoteRoutesList.add(route)
+                    }
+                    if (remoteRoutesList.isNotEmpty()) {
+                        val adapter = RouteAdapter(remoteRoutesList)
+                        adapter.setOnItemClickListener { route ->
+                            showRouteDetailsPopup(route)
+                        }
+                        binding.rvRoutes.adapter = adapter
+
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            database.routeDao().clearAll()
+                            database.routeDao().insertAll(remoteRoutesList)
+                        }
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Toast.makeText(this@MainActivity, "Failed to load live Firebase data: ${error.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    // Parse GTFS raw file (res/raw/routes.txt) safely off main thread
+    private fun parseGtfsRoutesFromRaw(): List<Route> {
+        val parsedRoutes = mutableListOf<Route>()
+        try {
+            // Check for res/raw/routes.txt or res/raw/routes.csv
+            val rawResourceId = resources.getIdentifier("routes", "raw", packageName)
+            if (rawResourceId != 0) {
+                val inputStream: InputStream = resources.openRawResource(rawResourceId)
+                inputStream.bufferedReader().useLines { lines ->
+                    lines.drop(1).forEach { line ->
+                        val tokens = line.split(",")
+                        if (tokens.size >= 3) {
+                            val shortName = tokens[1].replace("\"", "").trim()
+                            val longName = tokens[2].replace("\"", "").trim()
+                            val details = if (shortName.isNotBlank()) "$shortName - $longName" else longName
+                            val timeWindow = "Regular Operating Hours"
+                            val duration = "Est. 30-45 mins"
+                            val fare = "₱15.00 - ₱40.00"
+                            parsedRoutes.add(Route(details, timeWindow, duration, fare))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return parsedRoutes
+    }
+
     override fun onMapReady(googleMap: GoogleMap) {
 
         mMap = googleMap
-
 
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -248,7 +333,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     address.longitude
                 )
 
-                // Save destination information
                 destinationName = destination
                 destinationLat = address.latitude
                 destinationLng = address.longitude
@@ -266,6 +350,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 mMap.animateCamera(
                     CameraUpdateFactory.newLatLngZoom(destinationLocation, 15f)
                 )
+
+                fetchRecommendedRoutes()
 
             } else {
 
