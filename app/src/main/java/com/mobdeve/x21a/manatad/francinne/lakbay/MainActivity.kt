@@ -16,6 +16,12 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.LatLngBounds
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityMainBinding
 
 import androidx.lifecycle.lifecycleScope
@@ -30,11 +36,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private val remoteRoutesList = mutableListOf<Route>()
 
     private lateinit var mMap: GoogleMap
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
@@ -124,28 +133,48 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         mMap = googleMap
 
-        val dlsu = LatLng(14.5648, 120.9936)
-        val cityHall = LatLng(14.5906, 120.9817)
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
 
-        mMap.addMarker(
-            MarkerOptions()
-                .position(dlsu)
-                .title("De La Salle University Manila")
-        )
+        mMap.isMyLocationEnabled = true
 
-        mMap.addMarker(
-            MarkerOptions()
-                .position(cityHall)
-                .title("Manila City Hall")
-        )
+        fusedLocationClient.getCurrentLocation(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            null
+        ).addOnSuccessListener { location ->
 
-        val bounds = LatLngBounds.Builder()
-            .include(dlsu)
-            .include(cityHall)
-            .build()
+            if (location != null) {
 
-        mMap.moveCamera(
-            CameraUpdateFactory.newLatLngBounds(bounds, 100)
-        )
+                val currentLocation = LatLng(
+                    location.latitude,
+                    location.longitude
+                )
+
+                binding.tvFromAddress.text = "Current Location"
+
+                // Temporary destination
+                val cityHall = LatLng(14.5906, 120.9817)
+
+                mMap.addMarker(
+                    MarkerOptions()
+                        .position(cityHall)
+                        .title("Manila City Hall")
+                )
+
+                val bounds = LatLngBounds.Builder()
+                    .include(currentLocation)
+                    .include(cityHall)
+                    .build()
+
+                mMap.moveCamera(
+                    CameraUpdateFactory.newLatLngBounds(bounds, 100)
+                )
+            }
+        }
     }
 }
