@@ -39,6 +39,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private val remoteRoutesList = mutableListOf<Route>()
     private lateinit var mMap: GoogleMap
     private var destinationMarker: com.google.android.gms.maps.model.Marker? = null
+
+    private var destinationName = ""
+
+    private var destinationLat = 0.0
+    private var destinationLng = 0.0
+
+    private var currentLat = 0.0
+    private var currentLng = 0.0
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,7 +119,28 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         })
 
         binding.cvSearch.setOnClickListener {
+
+            if (destinationName.isBlank()) {
+                Toast.makeText(
+                    this,
+                    "Please enter a destination first.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+
             val intent = Intent(this, CommuterActiveTripActivity::class.java)
+
+            intent.putExtra("DESTINATION_NAME", destinationName)
+            intent.putExtra("DESTINATION_LAT", destinationLat)
+            intent.putExtra("DESTINATION_LNG", destinationLng)
+
+            intent.putExtra("CURRENT_LAT", currentLat)
+            intent.putExtra("CURRENT_LNG", currentLng)
+
+            intent.putExtra("ROUTE_TITLE", "Current Location → $destinationName"
+            )
+
             startActivity(intent)
         }
 
@@ -158,29 +187,21 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
             if (location != null) {
 
+                currentLat = location.latitude
+                currentLng = location.longitude
+
                 val currentLocation = LatLng(
-                    location.latitude,
-                    location.longitude
+                    currentLat,
+                    currentLng
                 )
 
                 binding.tvFromAddress.text = "Current Location"
 
-                // Temporary destination
-                val cityHall = LatLng(14.5906, 120.9817)
-
-                mMap.addMarker(
-                    MarkerOptions()
-                        .position(cityHall)
-                        .title("Manila City Hall")
-                )
-
-                val bounds = LatLngBounds.Builder()
-                    .include(currentLocation)
-                    .include(cityHall)
-                    .build()
-
                 mMap.moveCamera(
-                    CameraUpdateFactory.newLatLngBounds(bounds, 100)
+                    CameraUpdateFactory.newLatLngZoom(
+                        currentLocation,
+                        16f
+                    )
                 )
             }
         }
@@ -210,35 +231,40 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             .show()
     }
 
-    private fun updateDestination(destinationName: String) {
+    private fun updateDestination(destination: String) {
 
         val geocoder = Geocoder(this, Locale.getDefault())
 
         try {
 
-            val results = geocoder.getFromLocationName(destinationName, 1)
+            val results = geocoder.getFromLocationName(destination, 1)
 
             if (!results.isNullOrEmpty()) {
 
                 val address = results[0]
 
-                val destination = LatLng(
+                val destinationLocation = LatLng(
                     address.latitude,
                     address.longitude
                 )
 
-                binding.tvToAddress.text = destinationName
+                // Save destination information
+                destinationName = destination
+                destinationLat = address.latitude
+                destinationLng = address.longitude
+
+                binding.tvToAddress.text = destination
 
                 destinationMarker?.remove()
 
                 destinationMarker = mMap.addMarker(
                     MarkerOptions()
-                        .position(destination)
-                        .title(destinationName)
+                        .position(destinationLocation)
+                        .title(destination)
                 )
 
                 mMap.animateCamera(
-                    CameraUpdateFactory.newLatLngZoom(destination, 15f)
+                    CameraUpdateFactory.newLatLngZoom(destinationLocation, 15f)
                 )
 
             } else {

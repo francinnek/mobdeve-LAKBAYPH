@@ -25,6 +25,13 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
+    private var destinationName = ""
+    private var destinationLat = 0.0
+    private var destinationLng = 0.0
+
+    private var currentLat = 0.0
+    private var currentLng = 0.0
+
     // Define BroadcastReceiver to receive updates from background service
     private val tripReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -49,12 +56,31 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
         mapFragment.getMapAsync(this)
 
         val intentData = intent
+
+        val routeTitle = intentData.getStringExtra("ROUTE_TITLE")
+
+        destinationName = intentData.getStringExtra("DESTINATION_NAME") ?: ""
+
+        destinationLat = intentData.getDoubleExtra("DESTINATION_LAT", 0.0)
+        destinationLng = intentData.getDoubleExtra("DESTINATION_LNG", 0.0)
+
+        currentLat = intentData.getDoubleExtra("CURRENT_LAT", 0.0)
+        currentLng = intentData.getDoubleExtra("CURRENT_LNG", 0.0)
+
         val details = intentData.getStringExtra("ROUTE_DETAILS")
         val timeWindow = intentData.getStringExtra("ROUTE_TIME_WINDOW")
         val duration = intentData.getStringExtra("ROUTE_DURATION")
 
         binding.tvRouteDetails.text = details ?: "Jeepney (Taft Avenue)"
-        binding.tvTimeWindow.text = timeWindow ?: "Quirino Avenue"
+        binding.tvTimeWindow.text =
+            if (destinationName.isNotBlank())
+                destinationName
+            else
+                (timeWindow ?: "Destination")
+
+        binding.tvTripRoute.text =
+            routeTitle ?: "Current Location → Destination"
+
         binding.tvDuration.text = duration ?: "8 mins"
 
             // Start background location and trip tracking service
@@ -79,47 +105,52 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
+
         mMap = googleMap
 
         if (ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
+            ) != PackageManager.PERMISSION_GRANTED
         ) {
+            return
+        }
 
-            mMap.isMyLocationEnabled = true
+        mMap.isMyLocationEnabled = true
 
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+        val currentLocation = LatLng(currentLat, currentLng)
 
-                android.util.Log.d("GPS", "Location = $location")
+        if (destinationLat != 0.0 && destinationLng != 0.0) {
 
-                if (location != null) {
+            val destination = LatLng(
+                destinationLat,
+                destinationLng
+            )
 
-                    val currentLocation = LatLng(location.latitude, location.longitude)
+            mMap.addMarker(
+                MarkerOptions()
+                    .position(destination)
+                    .title(destinationName)
+            )
 
-                    mMap.moveCamera(
-                        CameraUpdateFactory.newLatLngZoom(
-                            currentLocation,
-                            16f
-                        )
-                    )
+            val bounds = com.google.android.gms.maps.model.LatLngBounds.Builder()
+                .include(currentLocation)
+                .include(destination)
+                .build()
 
-                } else {
+            mMap.animateCamera(
+                CameraUpdateFactory.newLatLngBounds(bounds, 200)
+            )
 
-                    // Fallback if location isn't available yet
-                    val dlsu = LatLng(14.5648, 120.9936)
+        } else {
 
-                    mMap.addMarker(
-                        MarkerOptions()
-                            .position(dlsu)
-                            .title("DLSU Manila")
-                    )
+            mMap.moveCamera(
+                CameraUpdateFactory.newLatLngZoom(
+                    currentLocation,
+                    16f
+                )
+            )
 
-                    mMap.moveCamera(
-                        CameraUpdateFactory.newLatLngZoom(dlsu, 16f)
-                    )
-                }
-            }
         }
     }
 }

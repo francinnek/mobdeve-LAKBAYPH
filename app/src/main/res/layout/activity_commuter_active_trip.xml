@@ -65,10 +65,11 @@
             android:contentDescription="Jeepney" />
 
         <TextView
+            android:id="@+id/tvTripRoute"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
-            android:text="DLSU → Manila City Hall"
+            android:text="Current Location → Destination"
             android:textAlignment="center"
             android:textColor="#222222"
             android:textSize="18sp"
