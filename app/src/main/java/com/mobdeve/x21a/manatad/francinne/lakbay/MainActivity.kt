@@ -1,41 +1,44 @@
 package com.mobdeve.x21a.manatad.francinne.lakbay
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.LatLngBounds
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityMainBinding
-
-import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.location.Geocoder
+import java.util.Locale
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var database: AppDatabase
     private val remoteRoutesList = mutableListOf<Route>()
-
     private lateinit var mMap: GoogleMap
+    private var destinationMarker: com.google.android.gms.maps.model.Marker? = null
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,6 +115,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             startActivity(intent)
         }
 
+        binding.tvToAddress.setOnClickListener {
+            showDestinationDialog()
+        }
+
         binding.fabSuggestRoute.setOnClickListener {
             val intent = Intent(this, SuggestRouteActivity::class.java)
             startActivity(intent)
@@ -132,6 +139,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onMapReady(googleMap: GoogleMap) {
 
         mMap = googleMap
+
 
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -176,5 +184,82 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 )
             }
         }
+    }
+
+    private fun showDestinationDialog() {
+
+        val editText = EditText(this)
+
+        AlertDialog.Builder(this)
+            .setTitle("Enter Destination")
+            .setMessage("Where would you like to go?")
+            .setView(editText)
+
+            .setPositiveButton("Search") { _, _ ->
+
+                val destination = editText.text.toString().trim()
+
+                if (destination.isNotEmpty()) {
+                    updateDestination(destination)
+                }
+
+            }
+
+            .setNegativeButton("Cancel", null)
+
+            .show()
+    }
+
+    private fun updateDestination(destinationName: String) {
+
+        val geocoder = Geocoder(this, Locale.getDefault())
+
+        try {
+
+            val results = geocoder.getFromLocationName(destinationName, 1)
+
+            if (!results.isNullOrEmpty()) {
+
+                val address = results[0]
+
+                val destination = LatLng(
+                    address.latitude,
+                    address.longitude
+                )
+
+                binding.tvToAddress.text = destinationName
+
+                destinationMarker?.remove()
+
+                destinationMarker = mMap.addMarker(
+                    MarkerOptions()
+                        .position(destination)
+                        .title(destinationName)
+                )
+
+                mMap.animateCamera(
+                    CameraUpdateFactory.newLatLngZoom(destination, 15f)
+                )
+
+            } else {
+
+                Toast.makeText(
+                    this,
+                    "Destination not found.",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+            }
+
+        } catch (e: Exception) {
+
+            Toast.makeText(
+                this,
+                "Error finding destination.",
+                Toast.LENGTH_SHORT
+            ).show()
+
+        }
+
     }
 }
