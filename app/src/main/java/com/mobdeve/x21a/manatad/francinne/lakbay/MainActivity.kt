@@ -246,6 +246,25 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     // Parse GTFS raw file (res/raw/routes.txt) safely off main thread
     private fun parseGtfsRoutesFromRaw(): List<Route> {
         val parsedRoutes = mutableListOf<Route>()
+
+        val parser = GtfsParser()
+
+        val routeStopsMap = parser.getRouteStopsMap(
+
+            resources.openRawResource(
+                resources.getIdentifier("stops", "raw", packageName)
+            ),
+
+            resources.openRawResource(
+                resources.getIdentifier("trips", "raw", packageName)
+            ),
+
+            resources.openRawResource(
+                resources.getIdentifier("stop_times", "raw", packageName)
+            )
+
+        )
+
         try {
             // Check for res/raw/routes.txt or res/raw/routes.csv
             val rawResourceId = resources.getIdentifier("routes", "raw", packageName)
@@ -253,8 +272,19 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 val inputStream: InputStream = resources.openRawResource(rawResourceId)
                 inputStream.bufferedReader().useLines { lines ->
                     lines.drop(1).forEach { line ->
-                        val tokens = line.split(",")
-                        if (tokens.size >= 3) {
+                        val tokens = parser.splitCsv(line)
+                        if (tokens.size >= 10) {
+
+                            val routeId = tokens[9].trim()
+
+                            val stopsForRoute = routeStopsMap[routeId] ?: emptyList()
+
+                            val nearOrigin = routePassesNearLocation(stopsForRoute, originLat, originLng)
+
+                            val nearDestination = routePassesNearLocation(stopsForRoute, destinationLat, destinationLng)
+
+                            if (!nearOrigin || !nearDestination) { return@forEach }
+
                             val shortName = tokens[1].replace("\"", "").trim()
                             val longName = tokens[2].replace("\"", "").trim()
                             val details = if (shortName.isNotBlank()) "$shortName - $longName" else longName
@@ -500,5 +530,45 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         }
+    }
+
+    private fun distanceInMeters(
+        lat1: Double,
+        lng1: Double,
+        lat2: Double,
+        lng2: Double
+    ): Float {
+
+        val results = FloatArray(1)
+
+        android.location.Location.distanceBetween(
+            lat1,
+            lng1,
+            lat2,
+            lng2,
+            results
+        )
+
+        return results[0]
+    }
+
+    private fun routePassesNearLocation(
+        stops: List<GtfsStop>,
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Float = 500f
+    ): Boolean {
+
+        return stops.any { stop ->
+
+            distanceInMeters(
+                latitude,
+                longitude,
+                stop.latitude,
+                stop.longitude
+            ) <= radiusMeters
+
+        }
+
     }
 }
