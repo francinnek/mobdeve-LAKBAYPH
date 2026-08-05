@@ -175,27 +175,63 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             val routeDao = database.routeDao()
 
             // Try parsing GTFS raw feed first
-            var gtfsRoutes = parseGtfsRoutesFromRaw()
+            val gtfsRoutes = parseGtfsRoutesFromRaw()
 
-            val routesToDisplay: List<Route> = if (gtfsRoutes.isNotEmpty()) {
-                // Clear old dummy cache and update Room DB with parsed GTFS routes
-                routeDao.clearAll()
-                routeDao.insertAll(gtfsRoutes)
-                gtfsRoutes
-            } else {
-                // Fallback to existing Room database entries or dummy data
-                val localRoutes = routeDao.getAllRoutes()
-                if (localRoutes.isEmpty()) {
-                    val dummyData = listOf(
-                        Route("🚶‍♂️ 2 > 🚌 5 > 🚇 MRT-3 35", "10:00 AM - 11:00 AM", "1 hr", "₱40.00"),
-                        Route("🚌 12 > 🚶‍♂️ 5 > 🚇 LRT-1 20", "10:15 AM - 11:15 AM", "55 mins", "₱35.00"),
-                        Route("🚶‍♂️ 10 > 🚌 25", "10:30 AM - 11:30 AM", "1 hr 10 mins", "₱20.00"),
-                        Route("🚕 Grab/Joyride", "Available Now", "25 mins", "₱180.00")
-                    )
-                    routeDao.insertAll(dummyData)
-                    routeDao.getAllRoutes()
+            // Default radius (meters) to consider a stop "near" origin/destination
+            val radiusMeters = 800f
+
+            // If we have GTFS route/stop files, perform spatial filtering
+            val parser = GtfsParser()
+            var routesToDisplay: List<Route> = listOf()
+
+            try {
+                val stopsStream = resources.openRawResource(R.raw.stops)
+                val tripsStream = resources.openRawResource(R.raw.trips)
+                val stopTimesStream = resources.openRawResource(R.raw.stop_times)
+
+                val routeStopsMap = parser.getRouteStopsMap(stopsStream, tripsStream, stopTimesStream)
+                val routeDetailsMap = parser.getRouteDetailsMap(stopsStream, tripsStream, stopTimesStream)
+
+                // Helper to compute distance
+                fun isNear(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Boolean {
+                    val results = FloatArray(1)
+                    android.location.Location.distanceBetween(lat1, lng1, lat2, lng2, results)
+                    return results[0] <= radiusMeters
+                }
+
+                // Determine which routes have stops near both origin and destination (if set)
+                val matchingRouteIds = routeStopsMap.filter { (_, stops) ->
+                    val nearOrigin = if (originLat == 0.0 && originLng == 0.0) true else stops.any { s -> isNear(originLat, originLng, s.latitude, s.longitude) }
+                    val nearDest = if (destinationLat == 0.0 && destinationLng == 0.0) true else stops.any { s -> isNear(destinationLat, destinationLng, s.latitude, s.longitude) }
+                    nearOrigin && nearDest
+                }.keys
+
+                if (matchingRouteIds.isNotEmpty()) {
+                    routesToDisplay = matchingRouteIds.map { routeId ->
+                        val details = routeDetailsMap[routeId] ?: "Route $routeId"
+                        Route(details, "Regular Operating Hours", "Est. 30-45 mins", "₱15.00 - ₱40.00")
+                    }
+                }
+            } catch (e: Exception) {
+                // If GTFS raw files missing or parsing fails, fall back to simple filtering by text
+                android.util.Log.w("MainActivity", "GTFS spatial filtering unavailable: ${e.localizedMessage}")
+            }
+
+            // If spatial filtering yielded nothing, fall back to original text-based heuristic or dummy data
+            if (routesToDisplay.isEmpty()) {
+                val filteredRoutes = if (destinationName.isNotBlank()) {
+                    gtfsRoutes.filter { route ->
+                        route.details.contains(destinationName, ignoreCase = true) ||
+                                route.details.contains("MRT", ignoreCase = true)
+                    }
                 } else {
-                    localRoutes
+                    gtfsRoutes
+                }
+
+                routesToDisplay = if (filteredRoutes.isNotEmpty()) {
+                    filteredRoutes
+                } else {
+                    listOf(Route("No specific route found for $destinationName", "N/A", "N/A", "N/A"))
                 }
             }
 
@@ -246,21 +282,46 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     // Parse GTFS raw file (res/raw/routes.txt) safely off main thread
     private fun parseGtfsRoutesFromRaw(): List<Route> {
         val parsedRoutes = mutableListOf<Route>()
+        val parser = GtfsParser()
         try {
+            val routeDetailsMap = parser.getRouteDetailsMap(
+                resources.openRawResource(R.raw.stops),
+                resources.openRawResource(R.raw.trips),
+                resources.openRawResource(R.raw.stop_times)
+            )
             // Check for res/raw/routes.txt or res/raw/routes.csv
             val rawResourceId = resources.getIdentifier("routes", "raw", packageName)
             if (rawResourceId != 0) {
                 val inputStream: InputStream = resources.openRawResource(rawResourceId)
                 inputStream.bufferedReader().useLines { lines ->
                     lines.drop(1).forEach { line ->
-                        val tokens = line.split(",")
-                        if (tokens.size >= 3) {
-                            val shortName = tokens[1].replace("\"", "").trim()
-                            val longName = tokens[2].replace("\"", "").trim()
-                            val details = if (shortName.isNotBlank()) "$shortName - $longName" else longName
-                            val timeWindow = "Regular Operating Hours"
-                            val duration = "Est. 30-45 mins"
-                            val fare = "₱15.00 - ₱40.00"
+                        val tokens = parser.splitCsv(line)
+                        if (tokens.size >= 10) {
+                            val shortName = tokens[1]
+                            val longName = tokens[2]
+
+                            //val shortName = tokens[1].replace("\"", "").trim()
+                            //val longName = tokens[2].replace("\"", "").trim()
+                            val routeId = tokens[9]
+                            val detailedStops = routeDetailsMap[routeId]
+
+                            val details = if (!detailedStops.isNullOrBlank()) {
+                                if (shortName.isNotBlank()) "($shortName) $detailedStops" else detailedStops
+                            } else  {
+                                if (shortName.isNotBlank()) "$shortName - $longName" else longName
+                            }
+                            //val details = if (shortName.isNotBlank()) "$shortName - $longName" else longName
+                            //val timeWindow = "Regular Operating Hours"
+                            //val duration = "Est. 30-45 mins"
+                            //val fare = "₱15.00 - ₱40.00"
+                            val distanceKm = calculateDistance(originLat, originLng, destinationLat, destinationLng)
+
+                            val estimatedMinutes = (distanceKm / 20 * 60).toInt() + 10
+                            val duration = if (distanceKm > 0) "Est. $estimatedMinutes mins" else "N/A"
+                            val estimatedFare = 13.0 + (distanceKm * 2.0)
+                            val fare = if (distanceKm > 0) String.format("₱%.2f", estimatedFare) else "N/A"
+
+                            val timeWindow = "Next trip in ~15 mins"
                             parsedRoutes.add(Route(details, timeWindow, duration, fare))
                         }
                     }
@@ -341,62 +402,53 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun updateDestination(destination: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val geocoder = Geocoder(this@MainActivity, Locale.getDefault())
+            try {
 
-        val geocoder = Geocoder(this, Locale.getDefault())
+                val results = geocoder.getFromLocationName(destination, 1)
+                withContext(Dispatchers.Main) {
+                    if (!results.isNullOrEmpty()) {
 
-        try {
+                        val address = results[0]
 
-            val results = geocoder.getFromLocationName(destination, 1)
+                        val destinationLocation = LatLng(
+                            address.latitude,
+                            address.longitude
+                        )
+                        destinationName = destination
+                        destinationLat = address.latitude
+                        destinationLng = address.longitude
 
-            if (!results.isNullOrEmpty()) {
-
-                val address = results[0]
-
-                val destinationLocation = LatLng(
-                    address.latitude,
-                    address.longitude
-                )
-
-                destinationName = destination
-                destinationLat = address.latitude
-                destinationLng = address.longitude
-
-                binding.tvToAddress.text = destination
-
-                destinationMarker?.remove()
-
-                destinationMarker = mMap.addMarker(
-                    MarkerOptions()
-                        .position(destinationLocation)
-                        .title(destination)
-                )
-
-                mMap.animateCamera(
-                    CameraUpdateFactory.newLatLngZoom(destinationLocation, 15f)
-                )
-
-                fetchRecommendedRoutes()
-
-            } else {
+                        binding.tvToAddress.text = destination
+                        destinationMarker?.remove()
+                        destinationMarker = mMap.addMarker(
+                            MarkerOptions()
+                                .position(destinationLocation)
+                                .title(destination)
+                        )
+                        mMap.animateCamera(
+                            CameraUpdateFactory.newLatLngZoom(destinationLocation, 15f)
+                        )
+                        fetchRecommendedRoutes()
+                    } else {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Destination not found.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
 
                 Toast.makeText(
-                    this,
-                    "Destination not found.",
+                    this@MainActivity,
+                    "Error finding destination.",
                     Toast.LENGTH_SHORT
                 ).show()
 
             }
-
-        } catch (e: Exception) {
-
-            Toast.makeText(
-                this,
-                "Error finding destination.",
-                Toast.LENGTH_SHORT
-            ).show()
-
         }
-
     }
 
     private fun showOriginDialog() {
@@ -500,5 +552,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
             }
         }
+    }
+
+    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val results = FloatArray(1)
+        android.location.Location.distanceBetween(lat1, lon1, lat2, lon2, results)
+        return (results[0] / 1000).toDouble() // Convert meters to KM
     }
 }
