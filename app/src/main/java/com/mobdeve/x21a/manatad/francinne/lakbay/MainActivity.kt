@@ -178,7 +178,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             val gtfsRoutes = parseGtfsRoutesFromRaw()
 
             // Default radius (meters) to consider a stop "near" origin/destination
-            val radiusMeters = 800f
+            val radiusMeters = 300f
 
             // If we have GTFS route/stop files, perform spatial filtering
             val parser = GtfsParser()
