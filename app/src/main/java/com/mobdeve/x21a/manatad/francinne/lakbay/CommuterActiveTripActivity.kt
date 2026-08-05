@@ -1,6 +1,7 @@
 package com.mobdeve.x21a.manatad.francinne.lakbay
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -97,6 +98,7 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onStart() {
         super.onStart()
         val filter = IntentFilter(TripTrackingService.ACTION_TRIP_UPDATE)
@@ -159,7 +161,6 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
                     )
                 }
             } else {
-                // Fallback: if view is not available, animate directly
                 mMap.animateCamera(
                     CameraUpdateFactory.newLatLngBounds(bounds, 200)
                 )
