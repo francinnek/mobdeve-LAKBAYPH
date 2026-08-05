@@ -201,9 +201,20 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                 // Determine which routes have stops near both origin and destination (if set)
                 val matchingRouteIds = routeStopsMap.filter { (_, stops) ->
-                    val nearOrigin = if (originLat == 0.0 && originLng == 0.0) true else stops.any { s -> isNear(originLat, originLng, s.latitude, s.longitude) }
-                    val nearDest = if (destinationLat == 0.0 && destinationLng == 0.0) true else stops.any { s -> isNear(destinationLat, destinationLng, s.latitude, s.longitude) }
-                    nearOrigin && nearDest
+                    val originSet = originLat != 0.0 || originLng != 0.0
+                    val destSet = destinationLat != 0.0 || destinationLng != 0.0
+
+                    // if neither is set, accept all
+                    if (!originSet && !destSet) return@filter true
+
+                    val originIndices = if (!originSet) emptyList() else stops.mapIndexedNotNull { idx, s -> if (isNear(originLat, originLng, s.latitude, s.longitude)) idx else null }
+                    val destIndices = if (!destSet) emptyList() else stops.mapIndexedNotNull { idx, s -> if (isNear(destinationLat, destinationLng, s.latitude, s.longitude)) idx else null }
+
+                    if (!originSet) return@filter destIndices.isNotEmpty()
+                    if (!destSet) return@filter originIndices.isNotEmpty()
+
+                    // Require at least one origin-stop that appears before at least one destination-stop on the route
+                    originIndices.any { o -> destIndices.any { d -> o < d } }
                 }.keys
 
                 if (matchingRouteIds.isNotEmpty()) {
