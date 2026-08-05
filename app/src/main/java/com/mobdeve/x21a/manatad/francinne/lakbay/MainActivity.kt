@@ -30,6 +30,7 @@ import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.util.Log
 import java.io.InputStream
 import java.util.Locale
 
@@ -442,9 +443,27 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun updateOrigin(addressName: String) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Check Geocoder availability
+                if (!Geocoder.isPresent()) {
+                    Log.e("MainActivity", "Geocoder service is not present on this device")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Geocoding service unavailable on this device.", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+
                 // Use Activity context explicitly; do network/IO work on IO dispatcher
                 val geocoder = Geocoder(this@MainActivity, Locale.getDefault())
-                val results = geocoder.getFromLocationName(addressName, 1)
+
+                val results = try {
+                    geocoder.getFromLocationName(addressName, 1)
+                } catch (ioe: java.io.IOException) {
+                    Log.e("MainActivity", "Geocoder IO error", ioe)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Network error during geocoding: ${ioe.localizedMessage}", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
 
                 if (!results.isNullOrEmpty()) {
                     val address = results[0]
@@ -469,13 +488,15 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         }
                     }
                 } else {
+                    Log.i("MainActivity", "Geocoder returned no results for: $addressName")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(this@MainActivity, "Origin not found.", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
+                Log.e("MainActivity", "Unexpected error in updateOrigin", e)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Error finding origin.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Error finding origin: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                 }
             }
         }
