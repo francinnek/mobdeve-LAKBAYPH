@@ -199,28 +199,56 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     return results[0] <= radiusMeters
                 }
 
-                // Determine which routes have stops near both origin and destination (if set)
-                val matchingRouteIds = routeStopsMap.filter { (_, stops) ->
-                    val originSet = originLat != 0.0 || originLng != 0.0
-                    val destSet = destinationLat != 0.0 || destinationLng != 0.0
+                // Determine candidate routes with proximity and ordering, then rank and take top N
+                val candidates = mutableListOf<Triple<String, Double, String>>() // routeId, score, details
+                val topN = 10
 
-                    // if neither is set, accept all
-                    if (!originSet && !destSet) return@filter true
+                for ((routeId, stops) in routeStopsMap) {
+                    val routeSize = stops.size
+                    if (routeSize == 0) continue
 
-                    val originIndices = if (!originSet) emptyList() else stops.mapIndexedNotNull { idx, s -> if (isNear(originLat, originLng, s.latitude, s.longitude)) idx else null }
-                    val destIndices = if (!destSet) emptyList() else stops.mapIndexedNotNull { idx, s -> if (isNear(destinationLat, destinationLng, s.latitude, s.longitude)) idx else null }
+                    // find nearest origin stop and dest stop (distance + index)
+                    var minOriginDist = Double.MAX_VALUE
+                    var minOriginIdx = -1
+                    var minDestDist = Double.MAX_VALUE
+                    var minDestIdx = -1
 
-                    if (!originSet) return@filter destIndices.isNotEmpty()
-                    if (!destSet) return@filter originIndices.isNotEmpty()
+                    for ((idx, s) in stops.withIndex()) {
+                        val dToOrigin = if (originLat == 0.0 && originLng == 0.0) 0.0 else {
+                            val res = FloatArray(1)
+                            android.location.Location.distanceBetween(originLat, originLng, s.latitude, s.longitude, res)
+                            res[0].toDouble()
+                        }
+                        val dToDest = if (destinationLat == 0.0 && destinationLng == 0.0) 0.0 else {
+                            val res = FloatArray(1)
+                            android.location.Location.distanceBetween(destinationLat, destinationLng, s.latitude, s.longitude, res)
+                            res[0].toDouble()
+                        }
 
-                    // Require at least one origin-stop that appears before at least one destination-stop on the route
-                    originIndices.any { o -> destIndices.any { d -> o < d } }
-                }.keys
+                        if (dToOrigin < minOriginDist) { minOriginDist = dToOrigin; minOriginIdx = idx }
+                        if (dToDest < minDestDist) { minDestDist = dToDest; minDestIdx = idx }
+                    }
 
-                if (matchingRouteIds.isNotEmpty()) {
-                    routesToDisplay = matchingRouteIds.map { routeId ->
-                        val details = routeDetailsMap[routeId] ?: "Route $routeId"
-                        Route(details, "Regular Operating Hours", "Est. 30-45 mins", "₱15.00 - ₱40.00")
+                    // Check proximity constraints
+                    val originClose = (originLat == 0.0 && originLng == 0.0) || minOriginDist <= radiusMeters
+                    val destClose = (destinationLat == 0.0 && destinationLng == 0.0) || minDestDist <= radiusMeters
+                    if (!originClose || !destClose) continue
+
+                    // Ensure direction: origin index before dest index
+                    if (!(minOriginIdx >= 0 && minDestIdx >= 0 && minOriginIdx < minDestIdx)) continue
+
+                    // Compute a simple score: combined distance + normalized index separation penalty
+                    val indexSepNorm = (minDestIdx - minOriginIdx).toDouble() / routeSize.toDouble()
+                    val score = minOriginDist + minDestDist + (indexSepNorm * 1000.0)
+
+                    val details = routeDetailsMap[routeId] ?: "Route $routeId"
+                    candidates.add(Triple(routeId, score, details))
+                }
+
+                val sorted = candidates.sortedBy { it.second }.take(topN)
+                if (sorted.isNotEmpty()) {
+                    routesToDisplay = sorted.map { Triple ->
+                        Route(Triple.third, "Regular Operating Hours", "Est. 30-45 mins", "₱15.00 - ₱40.00")
                     }
                 }
             } catch (e: Exception) {
