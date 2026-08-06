@@ -556,7 +556,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         stops: List<GtfsStop>,
         latitude: Double,
         longitude: Double,
-        radiusMeters: Float = 500f
+        radiusMeters: Float = 1000f
     ): Boolean {
 
         return stops.any { stop ->
