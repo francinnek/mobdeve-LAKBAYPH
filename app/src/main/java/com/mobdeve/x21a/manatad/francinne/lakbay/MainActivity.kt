@@ -240,7 +240,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         val fare = routeSnapshot.child("fare").getValue(String::class.java) ?: ""
                         //val routeId = routeSnapshot.child("route_id").getValue(String::class.java) ?: routeSnapshot.key
 
-                        val route = Route(details, timeWindow, duration, fare, routeId)
+                        val route = Route(details, timeWindow, duration, fare)
                         remoteRoutesList.add(route)
                     }
                     if (remoteRoutesList.isNotEmpty()) {
