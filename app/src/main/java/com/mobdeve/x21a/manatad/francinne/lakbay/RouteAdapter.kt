@@ -51,7 +51,7 @@ class RouteAdapter(private val routes: List<Route>) : RecyclerView.Adapter<Route
                 intent.putExtra("ROUTE_DURATION", route.duration)
                 intent.putExtra("ROUTE_FARE", route.fare)
 
-                //intent.putExtra("ROUTE_ID", route.routeId)
+                intent.putExtra("ROUTE_ID", route.routeId)
 
                 context.startActivity(intent)
             }

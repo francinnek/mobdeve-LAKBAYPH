@@ -131,13 +131,16 @@ class GtfsParser {
         return routeStops
     }
 
-    /*fun getShapeIdForRoute(tripsStream: InputStream, targetRouteId: String): String? {
+    fun getShapeIdForRoute(tripsStream: InputStream, targetRouteId: String): String? {
         val reader = tripsStream.bufferedReader()
         reader.useLines { lines ->
             lines.drop(1).forEach { line ->
                 val tokens = splitCsv(line)
                 if (tokens.size > 7 && tokens[0].trim() == targetRouteId) {
-                    return tokens[7]
+                    val shapeId = tokens[7].trim()
+                    if (shapeId.isNotBlank()) {
+                        return shapeId
+                    }
                 }
             }
         }
@@ -145,19 +148,34 @@ class GtfsParser {
     }
 
     fun getShapePoints(shapesStream: InputStream, targetShapeId: String): List<LatLng> {
-        val points = mutableListOf<LatLng>()
-        val reader = shapesStream.bufferedReader()
-        reader.useLines { lines ->
+        // 1. Use a temporary list to hold the sequence and the point
+        val tempPoints = mutableListOf<Pair<Int, LatLng>>()
+
+        shapesStream.bufferedReader().useLines { lines ->
             lines.drop(1).forEach { line ->
                 val tokens = splitCsv(line)
-                // shapes.txt: shape_id (0), lat (3), lon (4)
                 if (tokens.size > 4 && tokens[0].trim() == targetShapeId) {
+                    val seq = tokens[1].toIntOrNull() ?: 0 // The sequence number
                     val lat = tokens[3].toDoubleOrNull() ?: 0.0
                     val lng = tokens[4].toDoubleOrNull() ?: 0.0
-                    points.add(LatLng(lat, lng))
+                    tempPoints.add(seq to LatLng(lat, lng))
                 }
             }
         }
-        return points
-    }*/
+        // 2. Sort by sequence so the road is drawn in order
+        return tempPoints.sortedBy { it.first }.map { it.second }
+    }
+
+    fun getAllShapeIdsForRoute(tripsStream: InputStream, targetRouteId: String): List<String> {
+        val shapeIds = mutableSetOf<String>()
+        tripsStream.bufferedReader().useLines { lines ->
+            lines.drop(1).forEach { line ->
+                val tokens = splitCsv(line)
+                if (tokens.size > 7 && tokens[0].trim() == targetRouteId) {
+                    shapeIds.add(tokens[7].trim())
+                }
+            }
+        }
+        return shapeIds.toList()
+    }
 }

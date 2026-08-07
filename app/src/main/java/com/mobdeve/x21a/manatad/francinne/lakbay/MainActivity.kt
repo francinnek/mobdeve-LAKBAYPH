@@ -196,7 +196,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 intent.putExtra("ROUTE_FARE", route.fare)
                 intent.putExtra("ROUTE_TITLE", "$originName → $destinationName")
 
-                //intent.putExtra("ROUTE_ID", route.routeId)
+                intent.putExtra("ROUTE_ID", route.routeId)
 
                 startActivity(intent)
             }
@@ -238,9 +238,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         val timeWindow = routeSnapshot.child("timeWindow").getValue(String::class.java) ?: ""
                         val duration = routeSnapshot.child("duration").getValue(String::class.java) ?: ""
                         val fare = routeSnapshot.child("fare").getValue(String::class.java) ?: ""
-                        //val routeId = routeSnapshot.child("route_id").getValue(String::class.java) ?: routeSnapshot.key
+                        val routeId = routeSnapshot.child("route_id").getValue(String::class.java) ?: routeSnapshot.key
 
-                        val route = Route(details, timeWindow, duration, fare)
+                        val route = Route(details, timeWindow, duration, fare, routeId)
                         remoteRoutesList.add(route)
                     }
                     if (remoteRoutesList.isNotEmpty()) {
@@ -301,8 +301,22 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                             val longName = tokens[2].replace("\"", "").trim()
                             val details = if (shortName.isNotBlank()) "$shortName - $longName" else longName
                             val timeWindow = "Regular Operating Hours"
-                            val duration = "Est. 30-45 mins"
-                            val fare = "₱15.00 - ₱40.00"
+                            
+                            // Calculating EST and estimated fare
+                            val distanceMeters = distanceInMeters(originLat, originLng, destinationLat, destinationLng)
+                            val distanceKm = distanceMeters / 1000f
+                            
+                            // Estimate time: average speed ~20 km/h in Manila traffic
+                            val avgSpeed = 20f
+                            val estimatedMins = ((distanceKm / avgSpeed) * 60).toInt()
+                            val duration = if (estimatedMins > 0) "Est. $estimatedMins mins" else "Est. 5-10 mins"
+                            
+                            // Calculate fare: ₱10 base + ₱1.5 per km
+                            val baseFare = 10f
+                            val perKmFare = 1.5f
+                            val totalFare = baseFare + (distanceKm * perKmFare)
+                            val fare = "₱${"%.2f".format(totalFare)}"
+                            
                             parsedRoutes.add(Route(details, timeWindow, duration, fare, routeId))
                         }
                     }

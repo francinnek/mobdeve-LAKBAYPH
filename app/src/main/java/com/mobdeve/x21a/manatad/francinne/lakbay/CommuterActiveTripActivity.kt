@@ -19,6 +19,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.PolylineOptions
 import com.google.android.gms.maps.model.MarkerOptions
 import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityCommuterActiveTripBinding
 import java.text.SimpleDateFormat
@@ -48,7 +49,7 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
                 val elapsedSeconds = intent.getIntExtra(TripTrackingService.EXTRA_ELAPSED_SECONDS, 0)
                 val minutes = elapsedSeconds / 60
                 val seconds = elapsedSeconds % 60
-                binding.tvDuration.text = String.format("%02d:%02d", minutes, seconds)
+                binding.tvDuration.text = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
             }
         }
     }
@@ -128,7 +129,7 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onStart()
         val filter = IntentFilter(TripTrackingService.ACTION_TRIP_UPDATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(tripReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(tripReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(tripReceiver, filter)
         }
@@ -213,49 +214,114 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
 
         }
 
-        /*val routeId = intent.getStringExtra("ROUTE_ID")
-        Log.d("LAKBAY_POLYLINE", "Route ID received: $routeId")
-        
+        val routeId = intent.getStringExtra("ROUTE_ID")
         if (routeId != null) {
             executorService.execute {
                 try {
                     val parser = GtfsParser()
-                    Log.d("LAKBAY_POLYLINE", "Fetching shape ID for route: $routeId")
-                    
-                    val shapeId = parser.getShapeIdForRoute(resources.openRawResource(R.raw.trips), routeId)
-                    Log.d("LAKBAY_POLYLINE", "Shape ID found: $shapeId")
 
-                    if (shapeId != null) {
-                        val points = parser.getShapePoints(resources.openRawResource(R.raw.shapes), shapeId)
-                        Log.d("LAKBAY_POLYLINE", "Points count: ${points.size}")
+                    val shapeIds = parser.getAllShapeIdsForRoute(resources.openRawResource(R.raw.trips), routeId)
 
-                        if (points.isNotEmpty()) {
-                            runOnUiThread {
-                                mMap.addPolyline(
-                                    com.google.android.gms.maps.model.PolylineOptions()
-                                        .addAll(points as Iterable<LatLng?>)
-                                        .width(12f)
-                                        .color(android.graphics.Color.BLUE)
-                                        .geodesic(true)
-                                )
-                                Log.d("LAKBAY_POLYLINE", "Polyline added successfully")
-                            }
-                        } else {
-                            Log.w("LAKBAY_POLYLINE", "No points found for shape ID: $shapeId")
+                    var bestTripSegment = listOf<LatLng>()
+                    var minTotalError = Double.MAX_VALUE
+
+                    for (sId in shapeIds) {
+                        val points = parser.getShapePoints(resources.openRawResource(R.raw.shapes), sId)
+                        if (points.isEmpty()) continue
+
+                        val startIdx = findClosestPointIndex(points, currentLat, currentLng)
+                        val endIdx = findClosestPointIndex(points, destinationLat, destinationLng)
+
+                        val dStart = distanceInMeters(currentLat, currentLng, points[startIdx].latitude, points[startIdx].longitude)
+                        val dEnd = distanceInMeters(destinationLat, destinationLng, points[endIdx].latitude, points[endIdx].longitude)
+
+                        if ((dStart + dEnd) < minTotalError) {
+                            minTotalError = (dStart + dEnd).toDouble()
+                            val start = Math.min(startIdx, endIdx)
+                            val end = Math.max(startIdx, endIdx)
+                            bestTripSegment = points.subList(start, end + 1)
+                        }
+                    }
+
+                    if (bestTripSegment.isNotEmpty()) {
+                        runOnUiThread {
+                            mMap.addPolyline(
+                                PolylineOptions()
+                                    .addAll(bestTripSegment)
+                                    .width(20f)
+                                    .color(android.graphics.Color.BLUE)
+                                    .geodesic(true)
+                            )
                         }
                     } else {
-                        Log.w("LAKBAY_POLYLINE", "No shape ID found for route: $routeId")
+                        drawRouteFromStops(routeId, parser)
                     }
-                } catch (e: Exception) { 
+                } catch (e: Exception) {
                     Log.e("LAKBAY_POLYLINE", "Error loading polyline: ${e.message}", e)
-                    e.printStackTrace() 
                 }
             }
-        } else {
-            Log.w("LAKBAY_POLYLINE", "No route ID passed to activity")
-        }*/
+        }
+    }
+ 
+    private fun drawRouteFromStops(routeId: String, parser: GtfsParser) {
+        try {
+            val context = this@CommuterActiveTripActivity
+            val routeStopsMap = parser.getRouteStopsMap(
+                context.resources.openRawResource(context.resources.getIdentifier("stops", "raw", context.packageName)),
+                context.resources.openRawResource(context.resources.getIdentifier("trips", "raw", context.packageName)),
+                context.resources.openRawResource(context.resources.getIdentifier("stop_times", "raw", context.packageName))
+            )
 
-        //loadGtfsStops()
+            val stopsForRoute = routeStopsMap[routeId] ?: emptyList()
+            Log.d("LAKBAY_POLYLINE", "Stops for route $routeId: ${stopsForRoute.size}")
+
+            if (stopsForRoute.isNotEmpty()) {
+                // Find the closest stop to origin
+                var closestOriginIndex = 0
+                var minOriginDistance = Double.MAX_VALUE
+                stopsForRoute.forEachIndexed { index, stop ->
+                    val distance = distanceInMeters(currentLat, currentLng, stop.latitude, stop.longitude)
+                    if (distance < minOriginDistance) {
+                        minOriginDistance = distance.toDouble()
+                        closestOriginIndex = index
+                    }
+                }
+
+                // Find the closest stop to destination
+                var closestDestIndex = stopsForRoute.size - 1
+                var minDestDistance = Double.MAX_VALUE
+                stopsForRoute.forEachIndexed { index, stop ->
+                    val distance = distanceInMeters(destinationLat, destinationLng, stop.latitude, stop.longitude)
+                    if (distance < minDestDistance) {
+                        minDestDistance = distance.toDouble()
+                        closestDestIndex = index
+                    }
+                }
+
+                Log.d("LAKBAY_POLYLINE", "Closest stops - Origin: $closestOriginIndex, Destination: $closestDestIndex (out of ${stopsForRoute.size})")
+                val start = Math.min(closestOriginIndex, closestDestIndex)
+                val end = Math.max(closestOriginIndex, closestDestIndex)
+                val points = stopsForRoute.subList(start, end + 1).map { LatLng(it.latitude, it.longitude) }
+                
+                if (points.isNotEmpty()) {
+                    context.runOnUiThread {
+                        mMap.addPolyline(
+                            PolylineOptions()
+                                .addAll(points)
+                                .width(20f)
+                                .color(android.graphics.Color.BLUE)
+                                .geodesic(true)
+                        )
+                        Log.d("LAKBAY_POLYLINE", "Polyline added successfully from ${points.size} stops")
+                    }
+                }
+            } else {
+                Log.w("LAKBAY_POLYLINE", "No stops found for route: $routeId")
+            }
+        } catch (e: Exception) {
+            Log.e("LAKBAY_POLYLINE", "Error drawing route from stops: ${e.message}", e)
+            e.printStackTrace()
+        }
     }
 
     private fun loadGtfsStops() {
@@ -283,4 +349,25 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
     }
+    // Helper fun for calculating the EST and fare
+    private fun distanceInMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Float {
+        val results = FloatArray(1)
+        android.location.Location.distanceBetween(lat1, lng1, lat2, lng2, results)
+        return results[0]
+    }
+
+    // Helper fun to help look for the closest stops for origin and destination
+    private fun findClosestPointIndex(points: List<LatLng>, targetLat: Double, targetLng: Double): Int {
+        var closestIndex = 0
+        var minDistance = Float.MAX_VALUE
+        points.forEachIndexed { index, point ->
+            val distance = distanceInMeters(targetLat, targetLng, point.latitude, point.longitude)
+            if (distance < minDistance) {
+                minDistance = distance
+                closestIndex = index
+            }
+        }
+        return closestIndex
+    }
+
 }
