@@ -20,6 +20,9 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityCommuterActiveTripBinding
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 
 class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -36,7 +39,7 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentLat = 0.0
     private var currentLng = 0.0
 
-    // Initialize ExecutorService for offloading GTFS processing
+    // Initialize ExecutorService for offloading GTFS processing off main thread
     private val executorService = Executors.newSingleThreadExecutor()
 
     private val tripReceiver = object : BroadcastReceiver() {
@@ -94,7 +97,32 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
 
         binding.endTripBtn.setOnClickListener {
             stopService(serviceIntent)
-            finish()
+
+            // TODO: Insert the completed trip into the Room database off the main thread
+            val finalDuration = binding.tvDuration.text.toString()
+            val finalOrigin = routeTitle?.substringBefore(" → ") ?: "Current Location"
+            val finalDestination = destinationName.ifBlank { "Destination" }
+            val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+            val currentDate = sdf.format(Date())
+
+            val historyEntry = CommuteHistory(
+                origin = finalOrigin,
+                destination = finalDestination,
+                date = currentDate,
+                duration = finalDuration
+            )
+
+            // Offload the database insert operation to the background ExecutorService
+            executorService.execute {
+                AppDatabase.getDatabase(this@CommuterActiveTripActivity)
+                    .historyDao()
+                    .insertHistory(historyEntry)
+
+                // Return to the UI thread to finish the activity once the save is complete
+                runOnUiThread {
+                    finish()
+                }
+            }
         }
     }
 
@@ -116,6 +144,11 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
         } catch (e: IllegalArgumentException) {
             e.printStackTrace()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        executorService.shutdown()
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -177,27 +210,27 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
 
         }
 
-        // Load and parse GTFS stops on map off the main thread
         loadGtfsStops()
     }
 
     private fun loadGtfsStops() {
         executorService.execute {
             try {
-                // Place stops.txt inside res/raw/stops.txt
-                val inputStream = resources.openRawResource(R.raw.stops)
-                val parser = GtfsParser()
-                val stops = parser.parseStops(inputStream)
+                val stopsRawId = resources.getIdentifier("stops", "raw", packageName)
+                if (stopsRawId != 0) {
+                    val inputStream = resources.openRawResource(stopsRawId)
+                    val parser = GtfsParser()
+                    val stops = parser.parseStops(inputStream)
 
-                // Update UI elements on main thread
-                runOnUiThread {
-                    for (stop in stops) {
-                        val stopLatLng = LatLng(stop.latitude, stop.longitude)
-                        mMap.addMarker(
-                            MarkerOptions()
-                                .position(stopLatLng)
-                                .title(stop.stopName)
-                        )
+                    runOnUiThread {
+                        for (stop in stops) {
+                            val stopLatLng = LatLng(stop.latitude, stop.longitude)
+                            mMap.addMarker(
+                                MarkerOptions()
+                                    .position(stopLatLng)
+                                    .title(stop.stopName)
+                            )
+                        }
                     }
                 }
             } catch (e: Exception) {

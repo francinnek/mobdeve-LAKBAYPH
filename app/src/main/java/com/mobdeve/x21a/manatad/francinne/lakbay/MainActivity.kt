@@ -6,8 +6,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.os.Bundle
+import android.util.Log
+import android.view.View
 import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -30,7 +33,6 @@ import com.mobdeve.x21a.manatad.francinne.lakbay.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.util.Log
 import java.io.InputStream
 import java.util.Locale
 
@@ -47,21 +49,42 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private var destinationLat = 0.0
     private var destinationLng = 0.0
 
-    // For the Current Location function in the proposal
     private var currentLat = 0.0
     private var currentLng = 0.0
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
-    // Variables to allow user edit current location text area
     private var originName = "Current Location"
     private var originLat = 0.0
     private var originLng = 0.0
 
+    private val destinationSearchLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val selectedLocation = result.data?.getStringExtra(LocationSearchActivity.EXTRA_SELECTED_LOCATION)
+            if (!selectedLocation.isNullOrBlank()) {
+                updateDestination(selectedLocation)
+            }
+        }
+    }
+
+    private val originSearchLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val selectedLocation = result.data?.getStringExtra(LocationSearchActivity.EXTRA_SELECTED_LOCATION)
+            if (!selectedLocation.isNullOrBlank()) {
+                updateOrigin(selectedLocation)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        binding.clRoutesPanel.visibility = View.GONE
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
@@ -73,6 +96,25 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.rvRoutes.layoutManager = LinearLayoutManager(this)
 
         database = AppDatabase.getDatabase(this)
+
+        binding.navNavigate.setOnClickListener {
+            // Already in Navigate view; no action needed.
+        }
+
+        binding.navTerminals.setOnClickListener {
+            val intent = Intent(this, TerminalsActivity::class.java)
+            startActivity(intent)
+        }
+
+        binding.navHistory.setOnClickListener {
+            val intent = Intent(this, HistoryActivity::class.java)
+            startActivity(intent)
+        }
+
+        binding.navSettings.setOnClickListener {
+            val intent = Intent(this, SettingsActivity::class.java)
+            startActivity(intent)
+        }
 
         binding.cvSearch.setOnClickListener {
 
@@ -90,15 +132,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             intent.putExtra("DESTINATION_NAME", destinationName)
             intent.putExtra("DESTINATION_LAT", destinationLat)
             intent.putExtra("DESTINATION_LNG", destinationLng)
-
-            // intent.putExtra("CURRENT_LAT", currentLat)
-            // intent.putExtra("CURRENT_LNG", currentLng)
             intent.putExtra("CURRENT_LAT", originLat)
             intent.putExtra("CURRENT_LNG", originLng)
-
-            //intent.putExtra("ROUTE_TITLE", "Current Location → $destinationName")
             intent.putExtra("ROUTE_TITLE", "$originName → $destinationName")
-
 
             startActivity(intent)
         }
@@ -151,8 +187,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 intent.putExtra("DESTINATION_NAME", destinationName)
                 intent.putExtra("DESTINATION_LAT", destinationLat)
                 intent.putExtra("DESTINATION_LNG", destinationLng)
-//                intent.putExtra("CURRENT_LAT", currentLat)
-//                intent.putExtra("CURRENT_LNG", currentLng)
                 intent.putExtra("CURRENT_LAT", originLat)
                 intent.putExtra("CURRENT_LNG", originLng)
 
@@ -160,7 +194,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 intent.putExtra("ROUTE_TIME_WINDOW", route.timeWindow)
                 intent.putExtra("ROUTE_DURATION", route.duration)
                 intent.putExtra("ROUTE_FARE", route.fare)
-                //intent.putExtra("ROUTE_TITLE", "Current Location → $destinationName")
                 intent.putExtra("ROUTE_TITLE", "$originName → $destinationName")
 
                 startActivity(intent)
@@ -169,34 +202,19 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             .show()
     }
 
-    // Prioritize GTFS file parsing off main thread over old dummy entries
     private fun fetchRecommendedRoutes() {
         lifecycleScope.launch(Dispatchers.IO) {
             val routeDao = database.routeDao()
 
-            // Try parsing GTFS raw feed first
-            var gtfsRoutes = parseGtfsRoutesFromRaw()
+            val gtfsRoutes = parseGtfsRoutesFromRaw()
 
             val routesToDisplay: List<Route> = if (gtfsRoutes.isNotEmpty()) {
-                // Clear old dummy cache and update Room DB with parsed GTFS routes
                 routeDao.clearAll()
                 routeDao.insertAll(gtfsRoutes)
                 gtfsRoutes
             } else {
-                // Fallback to existing Room database entries or dummy data
                 val localRoutes = routeDao.getAllRoutes()
-                if (localRoutes.isEmpty()) {
-                    val dummyData = listOf(
-                        Route("🚶‍♂️ 2 > 🚌 5 > 🚇 MRT-3 35", "10:00 AM - 11:00 AM", "1 hr", "₱40.00"),
-                        Route("🚌 12 > 🚶‍♂️ 5 > 🚇 LRT-1 20", "10:15 AM - 11:15 AM", "55 mins", "₱35.00"),
-                        Route("🚶‍♂️ 10 > 🚌 25", "10:30 AM - 11:30 AM", "1 hr 10 mins", "₱20.00"),
-                        Route("🚕 Grab/Joyride", "Available Now", "25 mins", "₱180.00")
-                    )
-                    routeDao.insertAll(dummyData)
-                    routeDao.getAllRoutes()
-                } else {
-                    localRoutes
-                }
+                localRoutes
             }
 
             withContext(Dispatchers.Main) {
@@ -243,30 +261,23 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         })
     }
 
-    // Parse GTFS raw file (res/raw/routes.txt) safely off main thread
     private fun parseGtfsRoutesFromRaw(): List<Route> {
         val parsedRoutes = mutableListOf<Route>()
-
         val parser = GtfsParser()
 
         val routeStopsMap = parser.getRouteStopsMap(
-
             resources.openRawResource(
                 resources.getIdentifier("stops", "raw", packageName)
             ),
-
             resources.openRawResource(
                 resources.getIdentifier("trips", "raw", packageName)
             ),
-
             resources.openRawResource(
                 resources.getIdentifier("stop_times", "raw", packageName)
             )
-
         )
 
         try {
-            // Check for res/raw/routes.txt or res/raw/routes.csv
             val rawResourceId = resources.getIdentifier("routes", "raw", packageName)
             if (rawResourceId != 0) {
                 val inputStream: InputStream = resources.openRawResource(rawResourceId)
@@ -276,11 +287,9 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         if (tokens.size >= 10) {
 
                             val routeId = tokens[9].trim()
-
                             val stopsForRoute = routeStopsMap[routeId] ?: emptyList()
 
                             val nearOrigin = routePassesNearLocation(stopsForRoute, originLat, originLng)
-
                             val nearDestination = routePassesNearLocation(stopsForRoute, destinationLat, destinationLng)
 
                             if (!nearOrigin || !nearDestination) { return@forEach }
@@ -345,29 +354,11 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
     }
-
     private fun showDestinationDialog() {
-
-        val editText = EditText(this)
-
-        AlertDialog.Builder(this)
-            .setTitle("Enter Destination")
-            .setMessage("Where would you like to go?")
-            .setView(editText)
-
-            .setPositiveButton("Search") { _, _ ->
-
-                val destination = editText.text.toString().trim()
-
-                if (destination.isNotEmpty()) {
-                    updateDestination(destination)
-                }
-
-            }
-
-            .setNegativeButton("Cancel", null)
-
-            .show()
+        val intent = Intent(this, LocationSearchActivity::class.java).apply {
+            putExtra(LocationSearchActivity.EXTRA_SEARCH_MODE, "DESTINATION")
+        }
+        destinationSearchLauncher.launch(intent)
     }
 
     private fun updateDestination(destination: String) {
@@ -405,6 +396,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     CameraUpdateFactory.newLatLngZoom(destinationLocation, 15f)
                 )
 
+                binding.clRoutesPanel.visibility = View.VISIBLE
+
                 fetchRecommendedRoutes()
 
             } else {
@@ -428,32 +421,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
     }
-
     private fun showOriginDialog() {
-        val editText = EditText(this)
-        editText.hint = "Enter origin or leave blank for Current Location"
-
-        AlertDialog.Builder(this)
-            .setTitle("Set Origin")
-            .setMessage("Where are you starting from?")
-            .setView(editText)
-            .setPositiveButton("Set") { _, _ ->
-                val input = editText.text.toString().trim()
-                if (input.isEmpty()) {
-                    resetToCurrentLocation()
-                } else {
-                    updateOrigin(input)
-                }
-            }
-            .setNeutralButton("Use Current Location") { _, _ ->
-                resetToCurrentLocation()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        val intent = Intent(this, LocationSearchActivity::class.java).apply {
+            putExtra(LocationSearchActivity.EXTRA_SEARCH_MODE, "ORIGIN")
+        }
+        originSearchLauncher.launch(intent)
     }
 
     private fun resetToCurrentLocation() {
-        // Re-fetch current GPS coordinates
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener { location ->
@@ -462,9 +437,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         originLng = location.longitude
                         originName = "Current Location"
                         binding.tvFromAddress.text = originName
-
-                        // This is just to update map marker (pin location design in the map) if needed
-                        // mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(originLat, originLng), 15f))
                     }
                 }
         }
@@ -473,7 +445,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun updateOrigin(addressName: String) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Check Geocoder availability
                 if (!Geocoder.isPresent()) {
                     Log.e("MainActivity", "Geocoder service is not present on this device")
                     withContext(Dispatchers.Main) {
@@ -482,7 +453,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     return@launch
                 }
 
-                // Use Activity context explicitly; do network/IO work on IO dispatcher
                 val geocoder = Geocoder(this@MainActivity, Locale.getDefault())
 
                 val results = try {
@@ -503,7 +473,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                     val originLatLng = LatLng(originLat, originLng)
 
-                    // Switch to Main dispatcher for UI updates
                     withContext(Dispatchers.Main) {
                         binding.tvFromAddress.text = addressName
 
@@ -512,8 +481,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         )
                         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(originLatLng, 15f))
 
-                        // Re-fetch routes based on new origin if destination is already set
                         if (destinationName.isNotEmpty()) {
+                            binding.clRoutesPanel.visibility = View.VISIBLE
                             fetchRecommendedRoutes()
                         }
                     }

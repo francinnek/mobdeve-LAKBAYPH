@@ -53,9 +53,17 @@
             android:theme="@style/Theme.Lakbay" />
 
         <activity
+            android:name=".LocationSearchActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".SuggestRouteActivity"
             android:exported="false"
             android:theme="@style/Theme.Lakbay" />
+
+        <activity android:name=".HistoryActivity" />
+        <activity android:name=".TerminalsActivity" />
+        <activity android:name=".SettingsActivity" />
 
         <service
             android:name=".TripTrackingService"

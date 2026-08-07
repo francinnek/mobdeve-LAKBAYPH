@@ -32,14 +32,14 @@ class OnLaunchActivity : AppCompatActivity() {
         val sharedPreferences = getSharedPreferences("LakbaySession", Context.MODE_PRIVATE)
         val isLoggedIn = sharedPreferences.getBoolean("IS_LOGGED_IN", false)
 
-        if (isLoggedIn) {
+/*        if (isLoggedIn) {
             navigateWithLocationPermission(
                 Intent(this, MainActivity::class.java)
             )
             finish()
             return
         }
-
+*/
         binding = ActivityOnlaunchBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

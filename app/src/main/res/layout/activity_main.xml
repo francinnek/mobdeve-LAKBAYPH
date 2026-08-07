@@ -27,26 +27,14 @@
         app:layout_constraintEnd_toEndOf="parent"/>
 
     <ImageView
-        android:id="@+id/ivMenu"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
-        android:src="@android:drawable/ic_menu_sort_by_size"
-        android:contentDescription="Menu"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <ImageView
         android:id="@+id/ivLogout"
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:layout_marginStart="16dp"
-        android:src="@android:drawable/ic_lock_power_off"
         android:contentDescription="Logout"
-        app:tint="#FFFFFF"
-        app:layout_constraintTop_toTopOf="@id/ivMenu"
-        app:layout_constraintStart_toEndOf="@id/ivMenu" />
+        android:src="@android:drawable/ic_lock_power_off"
+        app:tint="#003AA8"
+        tools:layout_editor_absoluteX="72dp"
+        tools:layout_editor_absoluteY="24dp" />
 
     <TextView
         android:id="@+id/tvGreeting"
@@ -179,6 +167,7 @@
         android:orientation="horizontal"
         app:layout_constraintGuide_percent="0.66" />
 
+    <!-- TODO: Adjusted constraint bottom to sit above bottomNavBar -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/clRoutesPanel"
         android:layout_width="0dp"
@@ -187,7 +176,7 @@
         app:layout_constraintTop_toTopOf="@id/guidelinePanelTop"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent">
+        app:layout_constraintBottom_toTopOf="@id/bottomNavBar">
 
         <View
             android:id="@+id/vAccentBar"
@@ -226,6 +215,7 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- TODO: Adjusted constraint bottom to sit above bottomNavBar -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabSuggestRoute"
         android:layout_width="wrap_content"
@@ -233,7 +223,77 @@
         android:layout_margin="24dp"
         android:contentDescription="Suggest Route"
         android:src="@android:drawable/ic_input_add"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottomNavBar"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- TODO: New Bottom Navigation Bar using horizontal LinearLayout -->
+    <LinearLayout
+        android:id="@+id/bottomNavBar"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:orientation="horizontal"
+        android:background="#FFFFFF"
+        android:elevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:id="@+id/navNavigate"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@android:drawable/ic_dialog_map" app:tint="#003AA9"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Navigate" android:textSize="11sp" android:textColor="#003AA9" android:textStyle="bold"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/navTerminals"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@android:drawable/ic_menu_directions" app:tint="#7A7A7A"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Terminals" android:textSize="11sp" android:textColor="#7A7A7A"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/navHistory"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@android:drawable/ic_menu_recent_history" app:tint="#7A7A7A"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="History" android:textSize="11sp" android:textColor="#7A7A7A"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/navSettings"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@android:drawable/ic_menu_preferences" app:tint="#7A7A7A"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Settings" android:textSize="11sp" android:textColor="#7A7A7A"/>
+        </LinearLayout>
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

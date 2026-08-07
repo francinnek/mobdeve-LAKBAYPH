@@ -5,9 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Route::class], version = 1, exportSchema = false)
+@Database(entities = [Route::class, CommuteHistory::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun routeDao(): RouteDao
+
+    abstract fun historyDao(): HistoryDao
 
     companion object {
         @Volatile
