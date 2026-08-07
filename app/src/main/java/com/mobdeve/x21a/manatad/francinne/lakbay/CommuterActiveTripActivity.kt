@@ -39,7 +39,6 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentLat = 0.0
     private var currentLng = 0.0
 
-    // Initialize ExecutorService for offloading GTFS processing off main thread
     private val executorService = Executors.newSingleThreadExecutor()
 
     private val tripReceiver = object : BroadcastReceiver() {
@@ -98,7 +97,6 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.endTripBtn.setOnClickListener {
             stopService(serviceIntent)
 
-            // TODO: Insert the completed trip into the Room database off the main thread
             val finalDuration = binding.tvDuration.text.toString()
             val finalOrigin = routeTitle?.substringBefore(" → ") ?: "Current Location"
             val finalDestination = destinationName.ifBlank { "Destination" }
@@ -112,13 +110,11 @@ class CommuterActiveTripActivity : AppCompatActivity(), OnMapReadyCallback {
                 duration = finalDuration
             )
 
-            // Offload the database insert operation to the background ExecutorService
             executorService.execute {
                 AppDatabase.getDatabase(this@CommuterActiveTripActivity)
                     .historyDao()
                     .insertHistory(historyEntry)
 
-                // Return to the UI thread to finish the activity once the save is complete
                 runOnUiThread {
                     finish()
                 }
