@@ -70,7 +70,7 @@
         android:layout_marginTop="56dp"
         android:backgroundTint="#0032A0"
         android:ems="10"
-        android:inputType="numberPassword"
+        android:inputType="textPassword"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.496"
         app:layout_constraintStart_toStartOf="parent"

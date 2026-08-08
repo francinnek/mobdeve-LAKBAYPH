@@ -205,63 +205,58 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun fetchRecommendedRoutes() {
+        // Clear current list to show user that search is in progress
+        binding.rvRoutes.adapter = RouteAdapter(emptyList())
+
         lifecycleScope.launch(Dispatchers.IO) {
             val routeDao = database.routeDao()
-
             val gtfsRoutes = parseGtfsRoutesFromRaw()
 
-            val routesToDisplay: List<Route> = if (gtfsRoutes.isNotEmpty()) {
+            // Also fetch from Firebase once to see if there are additional relevant routes
+            val firebaseRoutes = fetchFirebaseRoutesSynchronously()
+            // In a real app, Firebase routes would also be filtered by location.
+            // For now, we combine them, but GTFS routes are already spatially filtered.
+            val allRoutes = (gtfsRoutes + firebaseRoutes).distinctBy { it.details }
+
+            if (allRoutes.isNotEmpty()) {
                 routeDao.clearAll()
-                routeDao.insertAll(gtfsRoutes)
-                gtfsRoutes
-            } else {
-                val localRoutes = routeDao.getAllRoutes()
-                localRoutes
+                routeDao.insertAll(allRoutes)
             }
 
             withContext(Dispatchers.Main) {
-                val adapter = RouteAdapter(routesToDisplay)
+                if (allRoutes.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "No routes found for this trip.", Toast.LENGTH_SHORT).show()
+                }
+                val adapter = RouteAdapter(allRoutes)
                 adapter.setOnItemClickListener { route ->
                     showRouteDetailsPopup(route)
                 }
                 binding.rvRoutes.adapter = adapter
             }
         }
+    }
 
-        val firebaseRef = FirebaseDatabase.getInstance().getReference("routes")
-        firebaseRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                if (snapshot.exists()) {
-                    remoteRoutesList.clear()
-                    for (routeSnapshot in snapshot.children) {
-                        val details = routeSnapshot.child("details").getValue(String::class.java) ?: ""
-                        val timeWindow = routeSnapshot.child("timeWindow").getValue(String::class.java) ?: ""
-                        val duration = routeSnapshot.child("duration").getValue(String::class.java) ?: ""
-                        val fare = routeSnapshot.child("fare").getValue(String::class.java) ?: ""
-                        val routeId = routeSnapshot.child("route_id").getValue(String::class.java) ?: routeSnapshot.key
+    private suspend fun fetchFirebaseRoutesSynchronously(): List<Route> = withContext(Dispatchers.IO) {
+        val routes = mutableListOf<Route>()
+        try {
+            val snapshot = com.google.android.gms.tasks.Tasks.await(
+                FirebaseDatabase.getInstance().getReference("routes").get()
+            )
+            if (snapshot.exists()) {
+                for (routeSnapshot in snapshot.children) {
+                    val details = routeSnapshot.child("details").getValue(String::class.java) ?: ""
+                    val timeWindow = routeSnapshot.child("timeWindow").getValue(String::class.java) ?: ""
+                    val duration = routeSnapshot.child("duration").getValue(String::class.java) ?: ""
+                    val fare = routeSnapshot.child("fare").getValue(String::class.java) ?: ""
+                    val routeId = routeSnapshot.child("route_id").getValue(String::class.java) ?: routeSnapshot.key
 
-                        val route = Route(details, timeWindow, duration, fare, routeId)
-                        remoteRoutesList.add(route)
-                    }
-                    if (remoteRoutesList.isNotEmpty()) {
-                        val adapter = RouteAdapter(remoteRoutesList)
-                        adapter.setOnItemClickListener { route ->
-                            showRouteDetailsPopup(route)
-                        }
-                        binding.rvRoutes.adapter = adapter
-
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            database.routeDao().clearAll()
-                            database.routeDao().insertAll(remoteRoutesList)
-                        }
-                    }
+                    routes.add(Route(details, timeWindow, duration, fare, routeId))
                 }
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(this@MainActivity, "Failed to load live Firebase data: ${error.message}", Toast.LENGTH_SHORT).show()
-            }
-        })
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Firebase fetch failed", e)
+        }
+        routes
     }
 
     private fun parseGtfsRoutesFromRaw(): List<Route> {
@@ -379,64 +374,55 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun updateDestination(destination: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val geocoder = Geocoder(this@MainActivity, Locale.getDefault())
+            try {
+                val results = geocoder.getFromLocationName(destination, 1)
+                withContext(Dispatchers.Main) {
+                    if (!results.isNullOrEmpty()) {
+                        val address = results[0]
+                        val destinationLocation = LatLng(
+                            address.latitude,
+                            address.longitude
+                        )
 
-        val geocoder = Geocoder(this, Locale.getDefault())
+                        destinationName = destination
+                        destinationLat = address.latitude
+                        destinationLng = address.longitude
 
-        try {
+                        binding.tvToAddress.text = destination
 
-            val results = geocoder.getFromLocationName(destination, 1)
+                        destinationMarker?.remove()
+                        destinationMarker = mMap.addMarker(
+                            MarkerOptions()
+                                .position(destinationLocation)
+                                .title(destination)
+                        )
 
-            if (!results.isNullOrEmpty()) {
+                        mMap.animateCamera(
+                            CameraUpdateFactory.newLatLngZoom(destinationLocation, 15f)
+                        )
 
-                val address = results[0]
-
-                val destinationLocation = LatLng(
-                    address.latitude,
-                    address.longitude
-                )
-
-                destinationName = destination
-                destinationLat = address.latitude
-                destinationLng = address.longitude
-
-                binding.tvToAddress.text = destination
-
-                destinationMarker?.remove()
-
-                destinationMarker = mMap.addMarker(
-                    MarkerOptions()
-                        .position(destinationLocation)
-                        .title(destination)
-                )
-
-                mMap.animateCamera(
-                    CameraUpdateFactory.newLatLngZoom(destinationLocation, 15f)
-                )
-
-                binding.clRoutesPanel.visibility = View.VISIBLE
-
-                fetchRecommendedRoutes()
-
-            } else {
-
-                Toast.makeText(
-                    this,
-                    "Destination not found.",
-                    Toast.LENGTH_SHORT
-                ).show()
-
+                        binding.clRoutesPanel.visibility = View.VISIBLE
+                        fetchRecommendedRoutes()
+                    } else {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Destination not found.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Error finding destination.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
-
-        } catch (e: Exception) {
-
-            Toast.makeText(
-                this,
-                "Error finding destination.",
-                Toast.LENGTH_SHORT
-            ).show()
-
         }
-
     }
     private fun showOriginDialog() {
         val intent = Intent(this, LocationSearchActivity::class.java).apply {
